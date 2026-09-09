@@ -142,5 +142,31 @@ def des_encrypt_block(key: bytes, block: bytes) -> bytes:
     return _bytes(_permute(right + left, _FP))
 
 
+def des_decrypt_block(key: bytes, block: bytes) -> bytes:
+    if len(key) != 8 or len(block) != 8:
+        raise ValueError("clave y bloque deben ser de 8 bytes")
+    keys = list(reversed(_subkeys(key)))
+    bits = _permute(_bits(block), _IP)
+    left, right = bits[:32], bits[32:]
+    for subkey in keys:
+        left, right = right, [a ^ b for a, b in zip(left, _feistel(right, subkey))]
+    return _bytes(_permute(right + left, _FP))
+
+
+def des3_cbc_decrypt(key24: bytes, iv: bytes, data: bytes) -> bytes:
+    """3DES-EDE en modo CBC (usado por Remmina para guardar contrasenas)."""
+    if len(key24) != 24:
+        raise ValueError("la clave 3DES debe ser de 24 bytes")
+    k1, k2, k3 = key24[:8], key24[8:16], key24[16:]
+    out = bytearray()
+    prev = iv
+    for i in range(0, len(data) - len(data) % 8, 8):
+        block = data[i : i + 8]
+        plain = des_decrypt_block(k1, des_encrypt_block(k2, des_decrypt_block(k3, block)))
+        out += bytes(a ^ b for a, b in zip(plain, prev))
+        prev = block
+    return bytes(out)
+
+
 def reverse_bits(data: bytes) -> bytes:
     return bytes(int(f"{b:08b}"[::-1], 2) for b in data)
