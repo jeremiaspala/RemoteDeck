@@ -56,6 +56,10 @@ QWidget {{
     font-size: 13px;
 }}
 
+QLabel, QCheckBox, QRadioButton, QGroupBox, QSplitter, QToolBar QWidget {{
+    background: transparent;
+}}
+
 QMainWindow::separator {{ background: {c['border']}; width: 1px; height: 1px; }}
 
 /* ---------- Barra lateral ---------- */

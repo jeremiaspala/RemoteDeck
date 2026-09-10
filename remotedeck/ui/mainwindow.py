@@ -318,6 +318,8 @@ class MainWindow(QMainWindow):
         ):
             toolbar.addAction(act)
         spacer = QWidget()
+        spacer.setObjectName("ToolbarSpacer")
+        spacer.setStyleSheet("background: transparent;")
         spacer.setSizePolicy(
             spacer.sizePolicy().horizontalPolicy().Expanding,
             spacer.sizePolicy().verticalPolicy(),

@@ -29,6 +29,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "vnc_binary": "",
     "last_import_dir": "",
     "fullscreen_hotkey": "F11",
+    "first_run_done": False,
 }
 
 

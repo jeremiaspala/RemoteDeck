@@ -61,7 +61,9 @@ def main(argv: list[str] | None = None) -> int:
     window = MainWindow(store, settings)
     window.show()
 
-    if not store.servers():
+    if not store.servers() and not settings["first_run_done"]:
+        settings["first_run_done"] = True
+        settings.save()
         _offer_first_import(window, store, importers)
 
     return app.exec()

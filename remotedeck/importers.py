@@ -62,6 +62,9 @@ def _remmina_decrypt(secret: bytes, token: str) -> str:
 
 def _keyring_lookup(profile: Path) -> str:
     """Remmina >= 1.4 guarda las contrasenas en libsecret."""
+    found = _keyring_lookup_gi(profile)
+    if found:
+        return found
     for attrs in (
         ["filename", str(profile), "key", "password"],
         ["filename", str(profile)],
@@ -77,6 +80,33 @@ def _keyring_lookup(profile: Path) -> str:
             return ""
         if out.returncode == 0 and out.stdout.strip():
             return out.stdout.rstrip("\n")
+    return ""
+
+
+def _keyring_lookup_gi(profile: Path) -> str:
+    """Consulta libsecret directamente (no depende de secret-tool)."""
+    try:
+        import gi
+
+        gi.require_version("Secret", "1")
+        from gi.repository import Secret
+    except (ImportError, ValueError):
+        return ""
+    schema = Secret.Schema.new(
+        "org.remmina.Password",
+        Secret.SchemaFlags.NONE,
+        {
+            "filename": Secret.SchemaAttributeType.STRING,
+            "key": Secret.SchemaAttributeType.STRING,
+        },
+    )
+    for attrs in ({"filename": str(profile), "key": "password"}, {"filename": str(profile)}):
+        try:
+            password = Secret.password_lookup_sync(schema, attrs, None)
+        except Exception:
+            return ""
+        if password:
+            return password
     return ""
 
 
