@@ -261,4 +261,5 @@ STRINGS = {
     "Nombre de la unidad en el servidor": "Drive name on the server",
     "No se pudo crear la carpeta {path}.": "Could not create the folder {path}.",
     "Publicar la carpeta de intercambio de RemoteDeck": "Publish the RemoteDeck exchange folder",
+    "La carpeta {path} no existe: no se comparte.": "The folder {path} does not exist: it is not shared.",
 }

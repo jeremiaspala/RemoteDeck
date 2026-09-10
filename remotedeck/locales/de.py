@@ -256,4 +256,5 @@ STRINGS = {
     "Nombre de la unidad en el servidor": "Laufwerksname auf dem Server",
     "No se pudo crear la carpeta {path}.": "Ordner {path} konnte nicht erstellt werden.",
     "Publicar la carpeta de intercambio de RemoteDeck": "Den Austauschordner von RemoteDeck veröffentlichen",
+    "La carpeta {path} no existe: no se comparte.": "Der Ordner {path} existiert nicht: er wird nicht freigegeben.",
 }

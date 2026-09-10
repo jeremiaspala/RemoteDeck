@@ -433,10 +433,18 @@ class SessionView(QWidget):
             return
 
         if self.server.protocol == RDP:
-            for label, path in backends.resolve_shares(self.server, self.settings):
+            shares = backends.resolve_shares(self.server, self.settings)
+            for label, path in shares:
                 self.log(
                     tr("Carpeta compartida: {path} -> \\\\tsclient\\{label}").format(
                         path=path, label=label
+                    )
+                )
+            missing = backends.unavailable_share(self.server)
+            if missing:
+                self.log(
+                    tr("La carpeta {path} no existe: no se comparte.").format(
+                        path=missing
                     )
                 )
 
@@ -547,7 +555,7 @@ class SessionView(QWidget):
         if not self.child_window:
             return
         # en una pestaña oculta no hay nada que recolocar: al volver a mostrarse
-        # el resizeEvent dispara _apply_child_geometry.
+        # el showEvent dispara _apply_child_geometry.
         if not self.isVisible():
             return
         conn = x11.shared()

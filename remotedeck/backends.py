@@ -70,6 +70,18 @@ def _drive_label(raw: str, fallback: str) -> str:
     return label or fallback
 
 
+def _own_share(server: Server) -> Path:
+    return Path(os.path.expanduser(server.rdp.shared_folder.strip()))
+
+
+def unavailable_share(server: Server) -> str:
+    """Carpeta propia del equipo que se configuro pero no se puede publicar."""
+    if not server.rdp.shared_folder.strip():
+        return ""
+    own = _own_share(server)
+    return "" if own.is_dir() else str(own)
+
+
 def resolve_shares(server: Server, settings=None) -> list[tuple[str, str]]:
     """Unidades a publicar en la sesion: (etiqueta, ruta local).
 
@@ -89,7 +101,7 @@ def resolve_shares(server: Server, settings=None) -> list[tuple[str, str]]:
             shares.append((_drive_label(label, "RemoteDeck"), str(path)))
 
     if o.shared_folder:
-        own = Path(os.path.expanduser(o.shared_folder.strip()))
+        own = _own_share(server)
         if own.is_dir() and str(own) not in [p for _, p in shares]:
             label = _drive_label(o.share_label, own.name or "shared")
             taken = {lbl for lbl, _ in shares}

@@ -256,4 +256,5 @@ STRINGS = {
     "Nombre de la unidad en el servidor": "Nom du lecteur sur le serveur",
     "No se pudo crear la carpeta {path}.": "Impossible de créer le dossier {path}.",
     "Publicar la carpeta de intercambio de RemoteDeck": "Publier le dossier d'échange de RemoteDeck",
+    "La carpeta {path} no existe: no se comparte.": "Le dossier {path} n'existe pas : il n'est pas partagé.",
 }
