@@ -31,6 +31,7 @@ instala nada.
   `.rdg` de RDCMan, de `.rdp` sueltos y de su propio JSON.
 - **Credenciales cifradas** en disco, con contraseña maestra opcional. Nunca
   viajan por la línea de comandos.
+- **Cuatro idiomas**: español (el principal), inglés, francés y alemán.
 - Búsqueda incremental, favoritos, notas y etiquetas por equipo, tema oscuro o
   claro y color de acento configurable.
 

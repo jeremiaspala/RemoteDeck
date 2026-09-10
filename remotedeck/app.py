@@ -25,6 +25,7 @@ def main(argv: list[str] | None = None) -> int:
     from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
 
     from . import APP_NAME, importers
+    from .i18n import set_language, tr
     from .paths import ensure_dirs
     from .store import Settings, Store
     from .vault import BadPassword, vault
@@ -35,6 +36,7 @@ def main(argv: list[str] | None = None) -> int:
 
     ensure_dirs()
     settings = Settings()
+    set_language(settings["language"])
 
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
     app = QApplication(argv if argv is not None else sys.argv)
@@ -54,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
                 vault.unlock(dialog.password())
                 break
             except BadPassword:
-                QMessageBox.warning(None, APP_NAME, "Contraseña maestra incorrecta.")
+                QMessageBox.warning(None, APP_NAME, tr("Contraseña maestra incorrecta."))
         else:
             return 1
     else:
@@ -64,15 +66,24 @@ def main(argv: list[str] | None = None) -> int:
     store = Store()
     store.load()
 
-    window = MainWindow(store, settings)
-    window.show()
+    while True:
+        window = MainWindow(store, settings)
+        window.show()
 
-    if not store.servers() and not settings["first_run_done"]:
-        settings["first_run_done"] = True
-        settings.save()
-        _offer_first_import(window, store, importers)
+        if not store.servers() and not settings["first_run_done"]:
+            settings["first_run_done"] = True
+            settings.save()
+            _offer_first_import(window, store, importers)
 
-    return app.exec()
+        code = app.exec()
+        if not getattr(window, "restart_requested", False):
+            return code
+        # cambio de idioma: se reconstruye la ventana con los textos nuevos
+        set_language(settings["language"])
+        app.setStyleSheet(stylesheet(settings["theme"], settings["accent"]))
+        window.deleteLater()
+        store = Store()
+        store.load()
 
 
 def _disable_animations(app) -> None:
@@ -98,11 +109,14 @@ def _offer_first_import(window, store, importers) -> None:
     profiles = importers._remmina_files()
     if not profiles:
         return
+    from .i18n import tr
+
     answer = QMessageBox.question(
         window,
         APP_NAME,
-        f"Se detectaron {len(profiles)} perfiles de Remmina en este equipo.\n"
-        "Quieres importarlos ahora?",
+        f"{tr('Se detectaron')} {len(profiles)} "
+        + tr("perfiles de Remmina en este equipo.") + "\n"
+        + tr("¿Quieres importarlos ahora?"),
         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
     )
     if answer == QMessageBox.StandardButton.Yes:

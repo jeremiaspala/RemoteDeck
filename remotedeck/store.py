@@ -13,6 +13,7 @@ from .paths import CONNECTIONS_FILE, SETTINGS_FILE, ensure_dirs
 SCHEMA_VERSION = 1
 
 DEFAULT_SETTINGS: dict[str, Any] = {
+    "language": "es",
     "theme": "dark",
     "accent": "#4c8dff",
     "connect_on_double_click": True,

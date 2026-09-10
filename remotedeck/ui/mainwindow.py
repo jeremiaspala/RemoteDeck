@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from ..i18n import tr
+
 from pathlib import Path
 
 from PyQt6.QtCore import QByteArray, QSize, Qt, QTimer
@@ -51,15 +53,15 @@ class ImportPreviewDialog(QDialog):
     def __init__(self, result: importers.ImportResult, source: str, settings, parent=None):
         super().__init__(parent)
         self.result = result
-        self.setWindowTitle(f"Importar desde {source}")
+        self.setWindowTitle(f"{tr('Importar desde')} {source}")
         self.setMinimumSize(560, 480)
         c = palette(settings["theme"], settings["accent"])
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
         header = QLabel(
-            f"Se encontraron <b>{result.count}</b> conexiones"
-            + (f" y {len(result.groups)} grupos." if result.groups else ".")
+            f"{tr('Se encontraron')} <b>{result.count}</b> {tr('conexiones')}"
+            + (f" {tr('y')} {len(result.groups)} {tr('grupos')}." if result.groups else ".")
         )
         layout.addWidget(header)
 
@@ -75,12 +77,15 @@ class ImportPreviewDialog(QDialog):
         self.tree.expandAll()
         layout.addWidget(self.tree, 1)
 
-        self.merge_check = QCheckBox("Fusionar con los grupos existentes del mismo nombre")
+        self.merge_check = QCheckBox(tr("Fusionar con los grupos existentes del mismo nombre"))
         self.merge_check.setChecked(True)
         layout.addWidget(self.merge_check)
 
         if result.skipped:
-            skipped = QLabel("Omitidos (protocolo no soportado): " + ", ".join(result.skipped[:8]))
+            skipped = QLabel(
+                tr("Omitidos (protocolo no soportado):") + " "
+                + ", ".join(result.skipped[:8])
+            )
             skipped.setObjectName("SessionMsg")
             skipped.setWordWrap(True)
             layout.addWidget(skipped)
@@ -94,10 +99,10 @@ class ImportPreviewDialog(QDialog):
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
-        ok.setText("Importar")
+        ok.setText(tr("Importar"))
         ok.setProperty("accent", True)
         ok.setEnabled(result.count > 0)
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Cancelar")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("Cancelar"))
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -151,8 +156,8 @@ class WelcomePage(QWidget):
         layout.addWidget(title)
 
         subtitle = QLabel(
-            "Gestiona tus conexiones RDP y VNC en pestañas. "
-            "Haz doble clic en un equipo de la izquierda para conectarte."
+            tr("Gestiona tus conexiones RDP y VNC en pestañas. "
+            "Haz doble clic en un equipo de la izquierda para conectarte.")
         )
         subtitle.setObjectName("WelcomeSub")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -161,7 +166,7 @@ class WelcomePage(QWidget):
 
         row = QHBoxLayout()
         row.addStretch(1)
-        new_btn = QPushButton(icons.icon("add", "#ffffff"), "  Nuevo servidor")
+        new_btn = QPushButton(icons.icon("add", "#ffffff"), tr("  Nuevo servidor"))
         new_btn.setProperty("accent", True)
         new_btn.clicked.connect(window.new_server)
         row.addWidget(new_btn)
@@ -176,6 +181,7 @@ class MainWindow(QMainWindow):
         self.store = store
         self.settings = settings
         self.sessions: list[SessionView] = []
+        self.restart_requested = False
 
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(icons.app_icon(settings["accent"]))
@@ -210,7 +216,7 @@ class MainWindow(QMainWindow):
         titles.setSpacing(0)
         name = QLabel(APP_NAME)
         name.setObjectName("BrandLabel")
-        sub = QLabel("RDP · VNC")
+        sub = QLabel(tr("RDP · VNC"))
         sub.setObjectName("BrandSub")
         titles.addWidget(name)
         titles.addWidget(sub)
@@ -218,19 +224,19 @@ class MainWindow(QMainWindow):
         brand.addStretch(1)
         add_btn = QPushButton(icons.icon("add", c["text_dim"]), "")
         add_btn.setProperty("flat", True)
-        add_btn.setToolTip("Nuevo servidor")
+        add_btn.setToolTip(tr("Nuevo servidor"))
         add_btn.clicked.connect(self.new_server)
         brand.addWidget(add_btn)
         folder_btn = QPushButton(icons.icon("folder-add", c["text_dim"]), "")
         folder_btn.setProperty("flat", True)
-        folder_btn.setToolTip("Nuevo grupo")
+        folder_btn.setToolTip(tr("Nuevo grupo"))
         folder_btn.clicked.connect(self.new_group)
         brand.addWidget(folder_btn)
         side_layout.addLayout(brand)
 
         self.search = QLineEdit()
         self.search.setObjectName("SearchBox")
-        self.search.setPlaceholderText("Buscar equipo, IP, etiqueta...")
+        self.search.setPlaceholderText(tr("Buscar equipo, IP, etiqueta..."))
         self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(self._on_search)
         side_layout.addWidget(self.search)
@@ -287,28 +293,28 @@ class MainWindow(QMainWindow):
             act.setToolTip(tip or text)
             return act
 
-        self.act_new_server = action("add", "Nuevo servidor", self.new_server, "Ctrl+N")
-        self.act_new_group = action("folder-add", "Nuevo grupo", self.new_group, "Ctrl+Shift+N")
-        self.act_connect = action("connect", "Conectar", self.connect_selected, "Return")
-        self.act_disconnect = action("disconnect", "Desconectar", self.disconnect_current, "Ctrl+W")
-        self.act_edit = action("edit", "Editar", self.edit_selected, "F2")
-        self.act_duplicate = action("copy", "Duplicar", self.duplicate_selected, "Ctrl+D")
-        self.act_delete = action("delete", "Eliminar", self.delete_selected, "Del")
-        self.act_wake = action("power", "Wake-on-LAN", self.wake_selected, "Ctrl+Shift+W")
-        self.act_fullscreen = action("fullscreen", "Pantalla completa", self.toggle_fullscreen, "F11")
-        self.act_reconnect = action("refresh", "Reconectar", self.reconnect_current, "Ctrl+R")
-        self.act_settings = action("settings", "Preferencias", self.open_settings, "Ctrl+,")
-        self.act_import_remmina = action("import", "Importar de Remmina", self.import_remmina)
-        self.act_import_file = action("import", "Importar fichero (.rdg, .rdp, .json)", self.import_file)
-        self.act_export = action("export", "Exportar conexiones", self.export_file)
+        self.act_new_server = action("add", tr("Nuevo servidor"), self.new_server, "Ctrl+N")
+        self.act_new_group = action("folder-add", tr("Nuevo grupo"), self.new_group, "Ctrl+Shift+N")
+        self.act_connect = action("connect", tr("Conectar"), self.connect_selected, "Return")
+        self.act_disconnect = action("disconnect", tr("Desconectar"), self.disconnect_current, "Ctrl+W")
+        self.act_edit = action("edit", tr("Editar"), self.edit_selected, "F2")
+        self.act_duplicate = action("copy", tr("Duplicar"), self.duplicate_selected, "Ctrl+D")
+        self.act_delete = action("delete", tr("Eliminar"), self.delete_selected, "Del")
+        self.act_wake = action("power", tr("Wake-on-LAN"), self.wake_selected, "Ctrl+Shift+W")
+        self.act_fullscreen = action("fullscreen", tr("Pantalla completa"), self.toggle_fullscreen, "F11")
+        self.act_reconnect = action("refresh", tr("Reconectar"), self.reconnect_current, "Ctrl+R")
+        self.act_settings = action("settings", tr("Preferencias"), self.open_settings, "Ctrl+,")
+        self.act_import_remmina = action("import", tr("Importar de Remmina"), self.import_remmina)
+        self.act_import_file = action("import", tr("Importar fichero (.rdg, .rdp, .json)"), self.import_file)
+        self.act_export = action("export", tr("Exportar conexiones"), self.export_file)
         self.act_refresh_status = action(
-            "network", "Comprobar estado", self.tree.refresh_status, "F5",
-            "Prueba el puerto RDP/VNC de cada equipo y actualiza el indicador "
+            "network", tr("Comprobar estado"), self.tree.refresh_status, "F5",
+            tr("Prueba el puerto RDP/VNC de cada equipo y actualiza el indicador "
             "verde (responde) o rojo (no responde). Se repite solo cada tanto; "
-            "el intervalo se cambia en Preferencias.",
+            "el intervalo se cambia en Preferencias."),
         )
-        self.act_quit = action("close", "Salir", self.close, "Ctrl+Q")
-        self.act_about = action("info", "Acerca de", self.show_about)
+        self.act_quit = action("close", tr("Salir"), self.close, "Ctrl+Q")
+        self.act_about = action("info", tr("Acerca de"), self.show_about)
 
         toolbar = self.addToolBar("Principal")
         toolbar.setObjectName("MainToolBar")
@@ -332,7 +338,7 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self.act_settings)
 
         menubar = self.menuBar()
-        file_menu = menubar.addMenu("&Archivo")
+        file_menu = menubar.addMenu(tr("&Archivo"))
         file_menu.addAction(self.act_new_server)
         file_menu.addAction(self.act_new_group)
         file_menu.addSeparator()
@@ -342,7 +348,7 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(self.act_quit)
 
-        session_menu = menubar.addMenu("&Sesión")
+        session_menu = menubar.addMenu(tr("&Sesión"))
         session_menu.addAction(self.act_connect)
         session_menu.addAction(self.act_reconnect)
         session_menu.addAction(self.act_disconnect)
@@ -350,14 +356,14 @@ class MainWindow(QMainWindow):
         session_menu.addAction(self.act_fullscreen)
         session_menu.addAction(self.act_wake)
 
-        edit_menu = menubar.addMenu("&Editar")
+        edit_menu = menubar.addMenu(tr("&Editar"))
         edit_menu.addAction(self.act_edit)
         edit_menu.addAction(self.act_duplicate)
         edit_menu.addAction(self.act_delete)
         edit_menu.addSeparator()
         edit_menu.addAction(self.act_settings)
 
-        help_menu = menubar.addMenu("A&yuda")
+        help_menu = menubar.addMenu(tr("A&yuda"))
         help_menu.addAction(self.act_about)
 
     # ------------------------------------------------------- utilidades
@@ -368,7 +374,9 @@ class MainWindow(QMainWindow):
     def _refresh_counts(self) -> None:
         total = len(self.store.servers())
         active = sum(1 for s in self.sessions if s.state == State.CONNECTED)
-        self.count_label.setText(f"{total} equipos · {active} sesiones activas")
+        self.count_label.setText(
+            f"{total} {tr('equipos')} · {active} {tr('sesiones activas')}"
+        )
 
     def _on_search(self, text: str) -> None:
         self.tree.set_filter(text)
@@ -481,11 +489,12 @@ class MainWindow(QMainWindow):
         if not nodes:
             return
         names = ", ".join(n.label for n in nodes[:5])
-        extra = f" y {len(nodes) - 5} mas" if len(nodes) > 5 else ""
+        extra = f" {tr('y')} {len(nodes) - 5} {tr('más')}" if len(nodes) > 5 else ""
         answer = QMessageBox.question(
             self,
-            "Eliminar",
-            f"Se eliminaran: {names}{extra}.\nLos grupos borran tambien su contenido.",
+            tr("Eliminar"),
+            f"{tr('Se eliminarán')}: {names}{extra}.\n"
+            + tr("Los grupos borran también su contenido."),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if answer != QMessageBox.StandardButton.Yes:
@@ -503,8 +512,8 @@ class MainWindow(QMainWindow):
         if len(servers) > 6:
             answer = QMessageBox.question(
                 self,
-                "Conectar",
-                f"Se abriran {len(servers)} sesiones. Continuar?",
+                tr("Conectar"),
+                f"{tr('Se abrirán')} {len(servers)} {tr('sesiones. ¿Continuar?')}",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if answer != QMessageBox.StandardButton.Yes:
@@ -605,8 +614,9 @@ class MainWindow(QMainWindow):
         ):
             answer = QMessageBox.question(
                 self,
-                "Cerrar sesión",
-                f"La sesión con {session.server.label} esta activa. Cerrarla?",
+                tr("Cerrar sesión"),
+                f"{tr('La sesión con')} {session.server.label} "
+                + tr("está activa. ¿Cerrarla?"),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if answer != QMessageBox.StandardButton.Yes:
@@ -654,8 +664,8 @@ class MainWindow(QMainWindow):
         servers = [s for s in self.tree.selected_servers() if s.wol.enabled]
         if not servers:
             QMessageBox.information(
-                self, "Wake-on-LAN",
-                "Ningún equipo seleccionado tiene una MAC configurada.",
+                self, tr("Wake-on-LAN"),
+                tr("Ningún equipo seleccionado tiene una MAC configurada."),
             )
             return
         sent = []
@@ -664,9 +674,11 @@ class MainWindow(QMainWindow):
                 net.wake(server.wol.mac, server.wol.broadcast, server.wol.port)
                 sent.append(server.label)
             except (ValueError, OSError) as exc:
-                QMessageBox.warning(self, "Wake-on-LAN", f"{server.label}: {exc}")
+                QMessageBox.warning(self, tr("Wake-on-LAN"), f"{server.label}: {exc}")
         if sent:
-            self.status.showMessage("Magic packet enviado a: " + ", ".join(sent), 6000)
+            self.status.showMessage(
+                tr("Magic packet enviado a:") + " " + ", ".join(sent), 6000
+            )
 
     # -------------------------------------------------------- importar
     def import_remmina(self) -> None:
@@ -677,9 +689,9 @@ class MainWindow(QMainWindow):
         start = self.settings["last_import_dir"] or str(Path.home())
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Importar conexiones",
+            tr("Importar conexiones"),
             start,
-            "Conexiones (*.rdg *.rdp *.remmina *.json);;Todos (*)",
+            tr("Conexiones") + " (*.rdg *.rdp *.remmina *.json);;" + tr("Todos") + " (*)",
         )
         if not path:
             return
@@ -692,8 +704,8 @@ class MainWindow(QMainWindow):
         if result.count == 0:
             QMessageBox.information(
                 self,
-                "Importar",
-                "No se encontraron conexiones compatibles.\n"
+                tr("Importar"),
+                tr("No se encontraron conexiones compatibles.") + "\n"
                 + "\n".join(result.warnings[:5]),
             )
             return
@@ -724,7 +736,8 @@ class MainWindow(QMainWindow):
         self.save_store()
         self.tree.rebuild()
         QMessageBox.information(
-            self, "Importar", f"Se importaron {added} conexiones desde {source}."
+            self, tr("Importar"),
+            f"{tr('Se importaron')} {added} {tr('conexiones desde')} {source}."
         )
 
     def _prune(self, group: Group, dialog: ImportPreviewDialog) -> None:
@@ -736,7 +749,7 @@ class MainWindow(QMainWindow):
 
     def export_file(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
-            self, "Exportar conexiones", str(Path.home() / "remotedeck.json"),
+            self, tr("Exportar conexiones"), str(Path.home() / "remotedeck.json"),
             "JSON (*.json)",
         )
         if not path:
@@ -747,9 +760,10 @@ class MainWindow(QMainWindow):
         Path(path).write_text(json.dumps(payload, indent=2))
         QMessageBox.information(
             self,
-            "Exportar",
-            "Conexiones exportadas.\nLas contraseñas van cifradas con la clave de "
-            "este equipo: en otro equipo habra que volver a introducirlas.",
+            tr("Exportar"),
+            tr("Conexiones exportadas.") + "\n"
+            + tr("Las contraseñas van cifradas con la clave de este equipo: en "
+                 "otro equipo habrá que volver a introducirlas."),
         )
 
     # ------------------------------------------------------ preferencias
@@ -757,6 +771,9 @@ class MainWindow(QMainWindow):
         dialog = SettingsDialog(self.settings, self)
         dialog.master_btn.clicked.connect(lambda: self._toggle_master(dialog))
         if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        if dialog.language_changed:
+            self._apply_language_change()
             return
         QApplication.instance().setStyleSheet(
             stylesheet(self.settings["theme"], self.settings["accent"])
@@ -769,13 +786,26 @@ class MainWindow(QMainWindow):
         self.tree.rebuild()
         self.tree.start_status_checks()
 
+    def _apply_language_change(self) -> None:
+        """El idioma se aplica reconstruyendo la ventana (los textos ya se fijaron)."""
+        if any(s.state == State.CONNECTED for s in self.sessions):
+            QMessageBox.information(
+                self,
+                tr("Idioma"),
+                tr("El idioma se aplicará al reiniciar la aplicación: hay "
+                   "sesiones abiertas."),
+            )
+            return
+        self.restart_requested = True
+        self.close()
+
     def _toggle_master(self, dialog) -> None:
         if vault.mode == "master":
             answer = QMessageBox.question(
                 self,
-                "Contraseña maestra",
-                "Se quitara la contraseña maestra y las credenciales pasaran a "
-                "cifrarse con una clave local. Continuar?",
+                tr("Contraseña maestra"),
+                tr("Se quitará la contraseña maestra y las credenciales pasarán "
+                   "a cifrarse con una clave local. ¿Continuar?"),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if answer != QMessageBox.StandardButton.Yes:
@@ -830,12 +860,15 @@ class MainWindow(QMainWindow):
         menu = QMenu(self)
         servers = self.tree.selected_servers()
         if servers:
-            label = "Conectar" if len(servers) == 1 else f"Conectar {len(servers)} equipos"
+            label = (
+                tr("Conectar") if len(servers) == 1
+                else f"{tr('Conectar')} {len(servers)} {tr('equipos')}"
+            )
             menu.addAction(icons.icon("connect", c["text_dim"]), label, self.connect_selected)
         if isinstance(node, Server) and node.wol.enabled:
-            menu.addAction(icons.icon("power", c["text_dim"]), "Wake-on-LAN", self.wake_selected)
+            menu.addAction(icons.icon("power", c["text_dim"]), tr("Wake-on-LAN"), self.wake_selected)
         menu.addSeparator()
-        menu.addAction(icons.icon("add", c["text_dim"]), "Nuevo servidor aqui", self.new_server)
+        menu.addAction(icons.icon("add", c["text_dim"]), tr("Nuevo servidor aquí"), self.new_server)
         menu.addAction(
             icons.icon("folder-add", c["text_dim"]),
             "Nuevo grupo dentro" if isinstance(node, Group) else "Nuevo grupo",
@@ -843,15 +876,15 @@ class MainWindow(QMainWindow):
         )
         if node is not None:
             menu.addSeparator()
-            menu.addAction(icons.icon("edit", c["text_dim"]), "Editar", self.edit_selected)
+            menu.addAction(icons.icon("edit", c["text_dim"]), tr("Editar"), self.edit_selected)
             if isinstance(node, Server):
-                menu.addAction(icons.icon("copy", c["text_dim"]), "Duplicar", self.duplicate_selected)
+                menu.addAction(icons.icon("copy", c["text_dim"]), tr("Duplicar"), self.duplicate_selected)
                 menu.addAction(
                     icons.icon("star", c["accent"] if node.favorite else c["text_dim"]),
                     "Quitar de favoritos" if node.favorite else "Marcar como favorito",
                     self._toggle_favorite,
                 )
-            menu.addAction(icons.icon("delete", c["text_dim"]), "Eliminar", self.delete_selected)
+            menu.addAction(icons.icon("delete", c["text_dim"]), tr("Eliminar"), self.delete_selected)
         menu.exec(self.tree.viewport().mapToGlobal(position))
 
     def _toggle_favorite(self) -> None:
@@ -867,8 +900,8 @@ class MainWindow(QMainWindow):
         if active:
             answer = QMessageBox.question(
                 self,
-                "Salir",
-                f"Hay {len(active)} sesiones activas. Cerrar todo?",
+                tr("Salir"),
+                f"{tr('Hay')} {len(active)} {tr('sesiones activas. ¿Cerrar todo?')}",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if answer != QMessageBox.StandardButton.Yes:

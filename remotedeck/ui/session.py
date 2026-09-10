@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from ..i18n import tr
+
 import time
 from enum import Enum
 
@@ -41,14 +43,15 @@ class State(Enum):
     FAILED = "failed"
 
 
-STATE_TEXT = {
-    State.IDLE: "En espera",
-    State.WAKING: "Despertando equipo (WoL)",
-    State.STARTING: "Conectando",
-    State.CONNECTED: "Conectado",
-    State.DISCONNECTED: "Desconectado",
-    State.FAILED: "Error",
-}
+def state_text(state: "State") -> str:
+    return {
+        State.IDLE: tr("En espera"),
+        State.WAKING: tr("Despertando equipo (WoL)"),
+        State.STARTING: tr("Conectando"),
+        State.CONNECTED: tr("Conectado"),
+        State.DISCONNECTED: tr("Desconectado"),
+        State.FAILED: tr("Error"),
+    }.get(state, "")
 
 
 class WakeWorker(QThread):
@@ -73,7 +76,7 @@ class WakeWorker(QThread):
             return
         try:
             net.wake(wol.mac, wol.broadcast, wol.port)
-            self.progress.emit(f"Magic packet enviado a {wol.mac}")
+            self.progress.emit(f"{tr('Magic packet enviado a')} {wol.mac}")
         except ValueError as exc:
             self.progress.emit(str(exc))
             self.finished_ok.emit(False)
@@ -84,7 +87,7 @@ class WakeWorker(QThread):
                 self.finished_ok.emit(True)
                 return
             remaining = int(deadline - time.monotonic())
-            self.progress.emit(f"Esperando a {host}:{port}... ({remaining}s)")
+            self.progress.emit(f"{tr('Esperando a')} {host}:{port}... ({remaining}s)")
             self.msleep(1500)
         self.finished_ok.emit(False)
 
@@ -140,21 +143,21 @@ class FullscreenBar(QWidget):
 
         self.pin_btn = QPushButton(icons.icon("star", c["text_dim"]), "")
         self.pin_btn.setCheckable(True)
-        self.pin_btn.setToolTip("Mantener esta barra visible")
+        self.pin_btn.setToolTip(tr("Mantener esta barra visible"))
         layout.addWidget(self.pin_btn)
 
         reconnect = QPushButton(icons.icon("refresh", c["text_dim"]), "")
-        reconnect.setToolTip("Reconectar")
+        reconnect.setToolTip(tr("Reconectar"))
         reconnect.clicked.connect(session.reconnect)
         layout.addWidget(reconnect)
 
-        exit_btn = QPushButton(icons.icon("fullscreen", c["text_dim"]), "  Salir (Esc)")
-        exit_btn.setToolTip("Salir de pantalla completa")
+        exit_btn = QPushButton(icons.icon("fullscreen", c["text_dim"]), tr("  Salir (Esc)"))
+        exit_btn.setToolTip(tr("Salir de pantalla completa"))
         exit_btn.clicked.connect(session.exit_fullscreen)
         layout.addWidget(exit_btn)
 
         close_btn = QPushButton(icons.icon("close", c["text_dim"]), "")
-        close_btn.setToolTip("Cerrar la sesión")
+        close_btn.setToolTip(tr("Cerrar la sesión"))
         close_btn.clicked.connect(lambda: session.requestClose.emit(session))
         layout.addWidget(close_btn)
 
@@ -297,15 +300,15 @@ class SessionView(QWidget):
 
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        self.retry_btn = QPushButton(icons.icon("refresh", c["text"]), "  Reintentar")
+        self.retry_btn = QPushButton(icons.icon("refresh", c["text"]), tr("  Reintentar"))
         self.retry_btn.clicked.connect(self.reconnect)
         self.retry_btn.hide()
         buttons.addWidget(self.retry_btn)
-        self.log_btn = QPushButton(icons.icon("terminal", c["text"]), "  Ver registro")
+        self.log_btn = QPushButton(icons.icon("terminal", c["text"]), tr("  Ver registro"))
         self.log_btn.setCheckable(True)
         self.log_btn.toggled.connect(self._toggle_log)
         buttons.addWidget(self.log_btn)
-        self.close_btn = QPushButton(icons.icon("close", c["text"]), "  Cerrar")
+        self.close_btn = QPushButton(icons.icon("close", c["text"]), tr("  Cerrar"))
         self.close_btn.setProperty("danger", True)
         self.close_btn.clicked.connect(lambda: self.requestClose.emit(self))
         buttons.addWidget(self.close_btn)
@@ -343,7 +346,7 @@ class SessionView(QWidget):
     # --------------------------------------------------------- estado
     def _set_state(self, state: State, message: str = "") -> None:
         self.state = state
-        self.message.setText(message or STATE_TEXT.get(state, ""))
+        self.message.setText(message or state_text(state))
         show_overlay = state != State.CONNECTED
         self.overlay.setVisible(show_overlay)
         if show_overlay:
@@ -362,7 +365,7 @@ class SessionView(QWidget):
 
     @property
     def status_text(self) -> str:
-        return STATE_TEXT.get(self.state, "")
+        return state_text(self.state)
 
     # ------------------------------------------------------- conexión
     def start(self) -> None:
@@ -381,7 +384,7 @@ class SessionView(QWidget):
         QTimer.singleShot(300, self.start)
 
     def _start_wake(self) -> None:
-        self._set_state(State.WAKING, "Enviando Wake-on-LAN...")
+        self._set_state(State.WAKING, tr("Enviando Wake-on-LAN..."))
         self.wake_worker = WakeWorker(self.server, self)
         self.wake_worker.progress.connect(
             lambda text: (self.log(text), self.message.setText(text))
@@ -396,15 +399,15 @@ class SessionView(QWidget):
         else:
             self._set_state(
                 State.FAILED,
-                f"El equipo no respondio en {self.server.host}:"
-                f"{self.server.effective_port} tras el Wake-on-LAN.",
+                f"{tr('El equipo no respondió en')} {self.server.host}:"
+                f"{self.server.effective_port} {tr('tras el Wake-on-LAN.')}",
             )
 
     def _launch(self) -> None:
-        self._set_state(State.STARTING, f"Conectando a {self.server.target}...")
+        self._set_state(State.STARTING, f"{tr('Conectando a')} {self.server.target}...")
         embed = self.server.display.embed and x11.available()
         if not x11.available():
-            self.log("X11 no disponible: la sesión se abrira en ventana externa.")
+            self.log(tr("X11 no disponible: la sesión se abrirá en ventana externa."))
 
         size = self._target_size()
         parent_xid = int(self.container.winId()) if embed else None
@@ -450,7 +453,7 @@ class SessionView(QWidget):
         else:
             self._set_state(State.CONNECTED, "")
             self.overlay.setVisible(True)
-            self.message.setText("Sesión abierta en una ventana externa.")
+            self.message.setText(tr("Sesión abierta en una ventana externa."))
 
     def _target_size(self) -> tuple[int, int]:
         d = self.server.display
@@ -470,8 +473,9 @@ class SessionView(QWidget):
             if self.state not in (State.FAILED, State.DISCONNECTED):
                 self._set_state(
                     State.FAILED,
-                    "No se pudo embeber la ventana del visor. Revisa el registro "
-                    "o desactiva 'Embeber en pestaña' en las opciones del servidor.",
+                    tr("No se pudo embeber la ventana del visor. Revisa el "
+                       "registro o desactiva 'Embeber en pestaña' en las "
+                       "opciones del servidor."),
                 )
             return
 
@@ -556,7 +560,7 @@ class SessionView(QWidget):
 
     def _process_error(self, error) -> None:
         if error == QProcess.ProcessError.FailedToStart:
-            self._set_state(State.FAILED, "No se pudo iniciar el visor.")
+            self._set_state(State.FAILED, tr("No se pudo iniciar el visor."))
 
     def _process_finished(self, code: int, status) -> None:
         self._find_timer.stop()
@@ -568,23 +572,23 @@ class SessionView(QWidget):
             return
         reason = self._diagnose(code)
         if code == 0:
-            self._set_state(State.DISCONNECTED, "Sesión finalizada.")
+            self._set_state(State.DISCONNECTED, tr("Sesión finalizada."))
         else:
             self._set_state(State.FAILED, reason)
 
     def _diagnose(self, code: int) -> str:
         text = "\n".join(self._log[-60:]).lower()
         if "logon failure" in text or "0x00020009" in text or "authentication" in text:
-            return "Fallo de autenticación: revisa usuario, dominio y contraseña."
+            return tr("Fallo de autenticación: revisa usuario, dominio y contraseña.")
         if "connection refused" in text or "errconnect_connect_failed" in text:
-            return f"Conexión rechazada por {self.server.target}."
+            return f"{tr('Conexión rechazada por')} {self.server.target}."
         if "no route to host" in text or "unreachable" in text:
-            return f"{self.server.host} no es alcanzable."
+            return f"{self.server.host} {tr('no es alcanzable.')}"
         if "certificate" in text:
-            return "Problema con el certificado del servidor."
+            return tr("Problema con el certificado del servidor.")
         if "authentication failure" in text or "auth failed" in text:
-            return "Autenticación VNC rechazada."
-        return f"El visor termino con codigo {code}."
+            return tr("Autenticación VNC rechazada.")
+        return f"{tr('El visor terminó con código')} {code}."
 
     def stop(self, quiet: bool = False) -> None:
         self._closing = True

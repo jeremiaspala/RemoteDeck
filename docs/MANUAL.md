@@ -217,7 +217,22 @@ En **Preferencias > Seguridad** elegís cómo se cifran:
 
 ---
 
-## 9. Atajos
+## 9. Idioma
+
+En **Preferencias > Apariencia > Idioma** podés elegir entre **español**
+(el idioma principal), **inglés**, **francés** y **alemán**. El cambio se
+aplica al instante: la ventana se reconstruye sola con los textos nuevos. Si
+hay sesiones abiertas, RemoteDeck avisa y el idioma se aplica en el próximo
+arranque para no cortarte una conexión.
+
+Si falta alguna traducción, se muestra el texto en español en vez de dejar el
+hueco vacío. Los diccionarios están en `remotedeck/locales/` (un fichero
+Python por idioma, con el texto en español como clave), así que agregar un
+idioma nuevo es copiar uno de esos ficheros y traducirlo.
+
+---
+
+## 10. Atajos
 
 | Atajo | Acción |
 |---|---|
@@ -238,7 +253,7 @@ En **Preferencias > Seguridad** elegís cómo se cifran:
 
 ---
 
-## 10. Problemas frecuentes
+## 11. Problemas frecuentes
 
 **"No se pudo embeber la ventana del visor"**
 El visor tardó más de 25 segundos en abrir su ventana o el servidor rechazó la
@@ -274,7 +289,7 @@ Estás en una sesión sin X11 ni XWayland. Instalá XWayland o iniciá sesión e
 
 ---
 
-## 11. Dónde se guarda todo
+## 12. Dónde se guarda todo
 
 | Ruta | Contenido |
 |---|---|
