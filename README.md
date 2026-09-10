@@ -82,7 +82,8 @@ resueltos con la biblioteca estándar y ctypes.
 
 El [manual completo](docs/MANUAL.md) cubre la instalación, las opciones de cada
 protocolo, Wake-on-LAN, los importadores, el cifrado de credenciales y una
-sección de problemas frecuentes.
+sección de problemas frecuentes. En la [bitácora de desarrollo](docs/BITACORA.md)
+están las decisiones de diseño y los problemas que aparecieron por el camino.
 
 Atajos principales:
 
