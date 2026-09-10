@@ -5,7 +5,15 @@ from __future__ import annotations
 import time
 from enum import Enum
 
-from PyQt6.QtCore import QProcess, QSize, Qt, QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import (
+    QProcess,
+    QProcessEnvironment,
+    QSize,
+    Qt,
+    QThread,
+    QTimer,
+    pyqtSignal,
+)
 from PyQt6.QtGui import QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QHBoxLayout,
@@ -289,7 +297,7 @@ class SessionView(QWidget):
         self.process.readyReadStandardOutput.connect(self._read_output)
         self.process.finished.connect(self._process_finished)
         self.process.errorOccurred.connect(self._process_error)
-        env = self.process.processEnvironment()
+        env = QProcessEnvironment.systemEnvironment()
         for key, value in (self.launch.env or {}).items():
             env.insert(key, value)
         env.insert("QT_QPA_PLATFORM", "xcb")
@@ -361,20 +369,37 @@ class SessionView(QWidget):
         x11.shared().map(window)
         self._set_state(State.CONNECTED, "")
         self._watch_timer.start()
+        # algunos visores se recolocan solos al terminar de arrancar
+        for delay in (250, 700, 1500):
+            QTimer.singleShot(delay, self._apply_child_geometry)
         QTimer.singleShot(400, self.focus_session)
+
+    def _desired_geometry(self) -> tuple[int, int]:
+        """Tamano que debe tener la ventana embebida."""
+        d = self.server.display
+        if d.mode == "fixed":
+            return d.width, d.height
+        return max(320, self.container.width()), max(240, self.container.height())
 
     def _apply_child_geometry(self) -> None:
         if not self.child_window:
             return
-        conn = x11.shared()
-        width = max(320, self.container.width())
-        height = max(240, self.container.height())
-        conn.move_resize(self.child_window, 0, 0, width, height)
+        width, height = self._desired_geometry()
+        x11.shared().move_resize(self.child_window, 0, 0, width, height)
 
     def _watch_child(self) -> None:
-        if self.child_window and not x11.shared().exists(self.child_window):
+        if not self.child_window:
+            return
+        conn = x11.shared()
+        geometry = conn.geometry(self.child_window)
+        if geometry is None:
             self.child_window = None
             self._watch_timer.stop()
+            return
+        x, y, width, height = geometry
+        wanted = self._desired_geometry()
+        if (x, y) != (0, 0) or (width, height) != wanted:
+            conn.move_resize(self.child_window, 0, 0, *wanted)
 
     def focus_session(self) -> None:
         if self.child_window and self.state == State.CONNECTED:
