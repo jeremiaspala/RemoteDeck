@@ -37,12 +37,14 @@ instala nada.
 
 ## Instalación
 
-Bajate el AppImage de la [última release](https://github.com/jeremiaspala/RemoteDeck/releases):
+**[⬇ Descargar RemoteDeck-x86_64.AppImage](https://github.com/jeremiaspala/RemoteDeck/releases/latest/download/RemoteDeck-x86_64.AppImage)** (~134 MB)
 
 ```bash
 chmod +x RemoteDeck-x86_64.AppImage
 ./RemoteDeck-x86_64.AppImage
 ```
+
+Si tu sistema no tiene FUSE, ejecutalo con `--appimage-extract-and-run`.
 
 Trae adentro Python 3.12, PyQt6, FreeRDP 3 y TigerVNC. No necesita permisos de
 administrador ni instalar clientes remotos.
