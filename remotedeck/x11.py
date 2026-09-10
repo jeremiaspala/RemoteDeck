@@ -1,4 +1,4 @@
-"""Envoltura minima de Xlib via ctypes para embeber ventanas externas.
+"""Envoltura mínima de Xlib via ctypes para embeber ventanas externas.
 
 Solo se usa lo imprescindible: buscar la ventana de un proceso hijo,
 reparentarla dentro de un contenedor Qt y redimensionarla.
@@ -147,7 +147,7 @@ _error_handler = _ERROR_HANDLER_T(_ignore_errors)
 
 
 class X11:
-    """Conexion X11 propia (independiente de la de Qt)."""
+    """Conexión X11 propia (independiente de la de Qt)."""
 
     def __init__(self) -> None:
         self.display: Optional[int] = None
@@ -292,7 +292,7 @@ class X11:
         _x11.XFlush(self.display)
 
     def close_window(self, window: int) -> bool:
-        """Envia WM_DELETE_WINDOW (cierre limpio)."""
+        """Envía WM_DELETE_WINDOW (cierre limpio)."""
         wm_protocols = self.atom("WM_PROTOCOLS")
         wm_delete = self.atom("WM_DELETE_WINDOW")
         if not wm_protocols or not wm_delete:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import (
     QCheckBox,
     QScrollArea,
@@ -28,7 +28,17 @@ from PyQt6.QtWidgets import (
 from .. import net
 from ..model import RDP, VNC, Credentials, Group, Server
 from . import icons
+from .brand import FUNDAMENTA_URL, fundamenta_pixmap
 from .theme import palette
+
+
+def _group_path(group: Group) -> str:
+    parts = [group.name]
+    node = group.parent
+    while node is not None and node.parent is not None:
+        parts.append(node.name)
+        node = node.parent
+    return " / ".join(reversed(parts))
 
 
 def _scrollable(page: QWidget) -> QScrollArea:
@@ -62,6 +72,127 @@ def _password_field(placeholder: str = "") -> tuple[QWidget, QLineEdit]:
     layout.addWidget(toggle)
     return box, edit
 
+
+
+
+class AboutDialog(QDialog):
+    """Acerca de: créditos, visores detectados y atajos."""
+
+    def __init__(self, settings, parent=None):
+        super().__init__(parent)
+        from .. import APP_NAME, __version__
+
+        c = palette(settings["theme"], settings["accent"])
+        dark = settings["theme"] != "light"
+        self.setWindowTitle(f"Acerca de {APP_NAME}")
+        self.setMinimumWidth(520)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 22, 24, 18)
+        layout.setSpacing(6)
+
+        logo = QLabel()
+        logo.setPixmap(icons.app_icon(c["accent"]).pixmap(QSize(72, 72)))
+        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(logo)
+
+        title = QLabel(APP_NAME)
+        title.setObjectName("WelcomeTitle")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+
+        version = QLabel(f"versión {__version__}")
+        version.setObjectName("SessionMsg")
+        version.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(version)
+
+        tagline = QLabel(
+            "Gestor de conexiones RDP y VNC con las sesiones embebidas en "
+            "pestañas, al estilo del Remote Desktop Connection Manager."
+        )
+        tagline.setObjectName("SessionMsg")
+        tagline.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tagline.setWordWrap(True)
+        layout.addWidget(tagline)
+        layout.addSpacing(10)
+
+        credits = QLabel(
+            '<div align="center">Creado por <b>Jeremías Palazzesi</b><br>'
+            '<a style="color:%s; text-decoration:none;" href="%s">%s</a></div>'
+            % (c["accent"], "https://github.com/jeremiaspala/RemoteDeck",
+               "github.com/jeremiaspala/RemoteDeck")
+        )
+        credits.setOpenExternalLinks(True)
+        credits.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(credits)
+        layout.addSpacing(14)
+
+        brand = QLabel()
+        brand.setPixmap(fundamenta_pixmap(34, dark))
+        brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        brand.setCursor(Qt.CursorShape.PointingHandCursor)
+        brand.setToolTip(FUNDAMENTA_URL)
+        layout.addWidget(brand)
+
+        link = QLabel(
+            '<div align="center"><a style="color:%s; text-decoration:none;" '
+            'href="%s">fundamenta.ar</a></div>' % (c["accent"], FUNDAMENTA_URL)
+        )
+        link.setOpenExternalLinks(True)
+        link.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(link)
+        layout.addSpacing(14)
+
+        backends_box = QGroupBox("Visores detectados")
+        backends_layout = QVBoxLayout(backends_box)
+        for label, text in _detected_backends():
+            row = QLabel(f"<b>{label}</b> · {text}")
+            row.setObjectName("SessionMsg")
+            row.setWordWrap(True)
+            backends_layout.addWidget(row)
+        layout.addWidget(backends_box)
+
+        shortcuts = QLabel(
+            "<div align='center'>F11 pantalla completa · Esc salir · "
+            "Ctrl+R reconectar · Ctrl+W cerrar sesión · F5 comprobar estado</div>"
+        )
+        shortcuts.setObjectName("SessionMsg")
+        shortcuts.setWordWrap(True)
+        layout.addWidget(shortcuts)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText("Cerrar")
+        buttons.rejected.connect(self.reject)
+        buttons.accepted.connect(self.accept)
+        layout.addWidget(buttons)
+
+
+def _detected_backends() -> list[tuple[str, str]]:
+    import subprocess
+
+    from .. import backends as be
+
+    out = []
+    for label, candidates, args in (
+        ("RDP", be.RDP_BINARIES, ["--version"]),
+        ("VNC", be.VNC_BINARIES, ["--version"]),
+    ):
+        try:
+            path = be.find_binary(candidates)
+        except be.BackendMissing:
+            out.append((label, "no encontrado"))
+            continue
+        version = ""
+        try:
+            result = subprocess.run(
+                [path, *args], capture_output=True, text=True, timeout=6
+            )
+            version = (result.stdout + result.stderr).strip().splitlines()
+            version = next((v for v in version if v.strip()), "")
+        except (OSError, subprocess.SubprocessError):
+            pass
+        out.append((label, f"{version or path}"))
+    return out
 
 class ServerDialog(QDialog):
     def __init__(self, server: Server, store, settings, parent=None, is_new=False):
@@ -136,12 +267,12 @@ class ServerDialog(QDialog):
         self.proto_combo.currentIndexChanged.connect(self._proto_changed)
         self.group_combo = QComboBox()
         for group in self.store.groups():
-            label = "Raiz" if group is self.store.root else self._group_path(group)
+            label = "Raíz" if group is self.store.root else _group_path(group)
             self.group_combo.addItem(label, group.id)
         self.tags_edit = QLineEdit()
         self.tags_edit.setPlaceholderText("produccion, sucursal-centro")
         self.fav_check = QCheckBox("Marcar como favorito")
-        self.startup_check = QCheckBox("Conectar al iniciar la aplicacion")
+        self.startup_check = QCheckBox("Conectar al iniciar la aplicación")
 
         form.addRow("Nombre", self.name_edit)
         form.addRow("Host", self.host_edit)
@@ -152,14 +283,6 @@ class ServerDialog(QDialog):
         form.addRow("", self.fav_check)
         form.addRow("", self.startup_check)
         return page
-
-    def _group_path(self, group: Group) -> str:
-        parts = [group.name]
-        node = group.parent
-        while node is not None and node.parent is not None:
-            parts.append(node.name)
-            node = node.parent
-        return " / ".join(reversed(parts))
 
     def _tab_credentials(self) -> QWidget:
         page = QWidget()
@@ -179,7 +302,7 @@ class ServerDialog(QDialog):
         pw_widget, self.pass_edit = _password_field("Se pedira al conectar si se deja vacio")
         form.addRow("Usuario", self.user_edit)
         form.addRow("Dominio", self.domain_edit)
-        form.addRow("Contrasena", pw_widget)
+        form.addRow("Contraseña", pw_widget)
         layout.addWidget(self.cred_box)
 
         self.inherited_label = QLabel()
@@ -195,8 +318,8 @@ class ServerDialog(QDialog):
         form.setContentsMargins(14, 16, 14, 16)
         form.setSpacing(12)
         self.mode_combo = QComboBox()
-        self.mode_combo.addItem("Ajustar al tamano de la pestana", "fit")
-        self.mode_combo.addItem("Resolucion fija", "fixed")
+        self.mode_combo.addItem("Ajustar al tamaño de la pestaña", "fit")
+        self.mode_combo.addItem("Resolución fija", "fixed")
         self.mode_combo.addItem("Pantalla completa", "fullscreen")
         self.mode_combo.currentIndexChanged.connect(self._mode_changed)
         size_box = QWidget()
@@ -210,12 +333,12 @@ class ServerDialog(QDialog):
         size_layout.addWidget(QLabel("x"))
         size_layout.addWidget(self.height_spin)
         size_layout.addStretch(1)
-        self.embed_check = QCheckBox("Embeber la sesion en una pestana")
+        self.embed_check = QCheckBox("Embeber la sesión en una pestaña")
         self.embed_check.setToolTip(
             "Si se desactiva, el visor se abre en su propia ventana del sistema."
         )
         form.addRow("Modo", self.mode_combo)
-        form.addRow("Resolucion", size_box)
+        form.addRow("Resolución", size_box)
         form.addRow("", self.embed_check)
         return page
 
@@ -225,13 +348,13 @@ class ServerDialog(QDialog):
         layout.setContentsMargins(14, 16, 14, 16)
         layout.setSpacing(14)
 
-        general = QGroupBox("Sesion")
+        general = QGroupBox("Sesión")
         form = QFormLayout(general)
         form.setSpacing(11)
         form.setContentsMargins(14, 8, 14, 12)
         self.rdp_security = QComboBox()
         for label, value in (
-            ("Automatica", "auto"), ("NLA", "nla"), ("TLS", "tls"), ("RDP clasico", "rdp")
+            ("Automática", "auto"), ("NLA", "nla"), ("TLS", "tls"), ("RDP clasico", "rdp")
         ):
             self.rdp_security.addItem(label, value)
         self.rdp_depth = QComboBox()
@@ -239,7 +362,7 @@ class ServerDialog(QDialog):
             self.rdp_depth.addItem(f"{depth} bits", depth)
         self.rdp_network = QComboBox()
         for label, value in (
-            ("Automatica", "auto"), ("LAN", "lan"), ("Banda ancha", "broadband"),
+            ("Automática", "auto"), ("LAN", "lan"), ("Banda ancha", "broadband"),
             ("WAN", "wan"), ("Modem", "modem"),
         ):
             self.rdp_network.addItem(label, value)
@@ -261,17 +384,17 @@ class ServerDialog(QDialog):
         grid.setHorizontalSpacing(24)
         grid.setVerticalSpacing(9)
         grid.setContentsMargins(14, 8, 14, 12)
-        self.rdp_console = QCheckBox("Sesion de consola/admin")
+        self.rdp_console = QCheckBox("Sesión de consola/admin")
         self.rdp_clipboard = QCheckBox("Portapapeles compartido")
         self.rdp_gfx = QCheckBox("Aceleracion GFX (RemoteFX)")
-        self.rdp_dynres = QCheckBox("Resolucion dinamica")
-        self.rdp_smart = QCheckBox("Escalar al tamano de la ventana")
+        self.rdp_dynres = QCheckBox("Resolución dinamica")
+        self.rdp_smart = QCheckBox("Escalar al tamaño de la ventana")
         self.rdp_multimon = QCheckBox("Multi-monitor")
         self.rdp_drives = QCheckBox("Redirigir unidades locales")
         self.rdp_home = QCheckBox("Redirigir carpeta personal")
         self.rdp_printers = QCheckBox("Redirigir impresoras")
         self.rdp_smartcard = QCheckBox("Redirigir lector de tarjetas")
-        self.rdp_mic = QCheckBox("Microfono")
+        self.rdp_mic = QCheckBox("Micrófono")
         self.rdp_cert = QCheckBox("Ignorar errores de certificado")
         widgets = [
             self.rdp_console, self.rdp_clipboard, self.rdp_gfx, self.rdp_dynres,
@@ -312,7 +435,7 @@ class ServerDialog(QDialog):
         form2.addRow("Gateway", self.rdp_gateway)
         form2.addRow("Usuario gateway", self.rdp_gw_user)
         form2.addRow("Dominio gateway", self.rdp_gw_domain)
-        form2.addRow("Contrasena gateway", gw_pw)
+        form2.addRow("Contraseña gateway", gw_pw)
         form2.addRow("Extra", self.rdp_extra)
         layout.addWidget(extra)
         layout.addStretch(1)
@@ -336,9 +459,9 @@ class ServerDialog(QDialog):
         self.vnc_user.setPlaceholderText("Solo para VeNCrypt/Plain")
         self.vnc_extra = QLineEdit()
         self.vnc_extra.setPlaceholderText("Argumentos adicionales de vncviewer")
-        form.addRow("Codificacion", self.vnc_encoding)
+        form.addRow("Codificación", self.vnc_encoding)
         form.addRow("Calidad JPEG", self.vnc_quality)
-        form.addRow("Compresion", self.vnc_compress)
+        form.addRow("Compresión", self.vnc_compress)
         form.addRow("Usuario", self.vnc_user)
         form.addRow("Extra", self.vnc_extra)
         layout.addLayout(form)
@@ -349,7 +472,7 @@ class ServerDialog(QDialog):
         grid.setVerticalSpacing(9)
         grid.setContentsMargins(14, 8, 14, 12)
         self.vnc_viewonly = QCheckBox("Solo lectura")
-        self.vnc_shared = QCheckBox("Sesion compartida")
+        self.vnc_shared = QCheckBox("Sesión compartida")
         self.vnc_color = QCheckBox("Color completo")
         self.vnc_resize = QCheckBox("Redimensionar el escritorio remoto")
         for index, widget in enumerate(
@@ -384,17 +507,17 @@ class ServerDialog(QDialog):
         self.wol_wait = QSpinBox()
         self.wol_wait.setRange(5, 600)
         self.wol_wait.setSuffix(" s")
-        self.wol_auto = QCheckBox("Despertar automaticamente antes de conectar")
+        self.wol_auto = QCheckBox("Despertar automáticamente antes de conectar")
         form.addRow("MAC", mac_box)
         form.addRow("Broadcast", self.wol_broadcast)
         form.addRow("Puerto", self.wol_port)
-        form.addRow("Espera maxima", self.wol_wait)
+        form.addRow("Espera máxima", self.wol_wait)
         form.addRow("", self.wol_auto)
         layout.addLayout(form)
         hint = QLabel(
-            "El paquete magico se envia por difusion UDP a los puertos 7 y 9. "
-            "Para despertar equipos en otra subred, indica la direccion de "
-            "difusion de esa red y permite el reenvio en el router."
+            "El paquete mágico se envía por difusión UDP a los puertos 7 y 9. "
+            "Para despertar equipos en otra subred, indica la dirección de "
+            "difusión de esa red y permite el reenvio en el router."
         )
         hint.setObjectName("SessionMsg")
         hint.setWordWrap(True)
@@ -515,7 +638,7 @@ class ServerDialog(QDialog):
                 self.inherited_label.setText(f"Se usaran las credenciales del grupo: {who}")
             else:
                 self.inherited_label.setText(
-                    "Ningun grupo padre tiene credenciales: se pediran al conectar."
+                    "Ningún grupo padre tiene credenciales: se pediran al conectar."
                 )
         else:
             self.inherited_label.setText("")
@@ -630,17 +753,34 @@ class ServerDialog(QDialog):
 
 
 class GroupDialog(QDialog):
-    def __init__(self, group: Group, settings, parent=None, is_new=False):
+    def __init__(self, group: Group, settings, parent=None, is_new=False,
+                 store=None, parent_group=None):
         super().__init__(parent)
         self.group = group
+        self.store = store
         self.setWindowTitle("Nuevo grupo" if is_new else f"Editar grupo · {group.label}")
-        self.setMinimumWidth(460)
+        self.setMinimumWidth(480)
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(18, 18, 18, 16)
         layout.setSpacing(12)
         form = QFormLayout()
+        form.setSpacing(11)
         self.name_edit = QLineEdit(group.name)
         self.name_edit.setPlaceholderText("Nombre del grupo")
         form.addRow("Nombre", self.name_edit)
+
+        self.parent_combo = QComboBox()
+        if store is not None:
+            forbidden = {group.id} | {n.id for n in group.walk()}
+            for candidate in store.groups():
+                if candidate.id in forbidden:
+                    continue
+                label = "Raíz" if candidate is store.root else _group_path(candidate)
+                self.parent_combo.addItem(label, candidate.id)
+            target = parent_group or group.parent or store.root
+            index = self.parent_combo.findData(target.id)
+            self.parent_combo.setCurrentIndex(max(0, index))
+            form.addRow("Dentro de", self.parent_combo)
         layout.addLayout(form)
 
         box = QGroupBox("Credenciales heredadas por los servidores del grupo")
@@ -651,7 +791,7 @@ class GroupDialog(QDialog):
         self.pass_edit.setText(group.credentials.password())
         gform.addRow("Usuario", self.user_edit)
         gform.addRow("Dominio", self.domain_edit)
-        gform.addRow("Contrasena", pw_widget)
+        gform.addRow("Contraseña", pw_widget)
         layout.addWidget(box)
 
         self.notes_edit = QPlainTextEdit(group.notes)
@@ -669,6 +809,10 @@ class GroupDialog(QDialog):
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    @property
+    def selected_parent_id(self) -> str | None:
+        return self.parent_combo.currentData() if self.store is not None else None
 
     def _accept(self) -> None:
         name = self.name_edit.text().strip()
@@ -704,7 +848,7 @@ class CredentialsPrompt(QDialog):
         if server.protocol == RDP:
             form.addRow("Usuario", self.user_edit)
             form.addRow("Dominio", self.domain_edit)
-        form.addRow("Contrasena", pw_widget)
+        form.addRow("Contraseña", pw_widget)
         layout.addLayout(form)
 
         self.save_check = QCheckBox("Guardar en este servidor")
@@ -737,14 +881,14 @@ class MasterPasswordDialog(QDialog):
         """mode: ask | set"""
         super().__init__(parent)
         self.mode = mode
-        self.setWindowTitle("Contrasena maestra")
+        self.setWindowTitle("Contraseña maestra")
         self.setMinimumWidth(400)
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
         text = (
-            "Introduce la contrasena maestra para descifrar las credenciales."
+            "Introduce la contraseña maestra para descifrar las credenciales."
             if mode == "ask"
-            else "Define una contrasena maestra. Sin ella no se podran recuperar "
+            else "Define una contraseña maestra. Sin ella no se podran recuperar "
             "las credenciales guardadas."
         )
         label = QLabel(text)
@@ -754,7 +898,7 @@ class MasterPasswordDialog(QDialog):
 
         form = QFormLayout()
         pw1, self.pass_edit = _password_field()
-        form.addRow("Contrasena", pw1)
+        form.addRow("Contraseña", pw1)
         if mode == "set":
             pw2, self.confirm_edit = _password_field()
             form.addRow("Repetir", pw2)
@@ -779,10 +923,10 @@ class MasterPasswordDialog(QDialog):
                 self.error_label.setText("Usa al menos 6 caracteres.")
                 return
             if self.pass_edit.text() != self.confirm_edit.text():
-                self.error_label.setText("Las contrasenas no coinciden.")
+                self.error_label.setText("Las contraseñas no coinciden.")
                 return
         elif not self.pass_edit.text():
-            self.error_label.setText("Introduce la contrasena.")
+            self.error_label.setText("Introduce la contraseña.")
             return
         self.accept()
 
@@ -812,14 +956,14 @@ class SettingsDialog(QDialog):
         self.tabpos_combo.setCurrentIndex(0 if settings["tab_position"] == "top" else 1)
         form.addRow("Tema", self.theme_combo)
         form.addRow("Color de acento", self.accent_edit)
-        form.addRow("Pestanas", self.tabpos_combo)
+        form.addRow("Pestañas", self.tabpos_combo)
         layout.addWidget(appearance)
 
         behaviour = QGroupBox("Comportamiento")
         form2 = QFormLayout(behaviour)
         self.dbl_check = QCheckBox("Conectar al hacer doble clic")
         self.dbl_check.setChecked(bool(settings["connect_on_double_click"]))
-        self.confirm_check = QCheckBox("Confirmar antes de cerrar una sesion activa")
+        self.confirm_check = QCheckBox("Confirmar antes de cerrar una sesión activa")
         self.confirm_check.setChecked(bool(settings["confirm_close_session"]))
         self.status_check = QCheckBox("Comprobar el estado de los equipos")
         self.status_check.setChecked(bool(settings["status_check"]))
@@ -836,9 +980,9 @@ class SettingsDialog(QDialog):
         binaries = QGroupBox("Visores")
         form3 = QFormLayout(binaries)
         self.rdp_bin = QLineEdit(settings["rdp_binary"])
-        self.rdp_bin.setPlaceholderText("xfreerdp3 (automatico)")
+        self.rdp_bin.setPlaceholderText("xfreerdp3 (automático)")
         self.vnc_bin = QLineEdit(settings["vnc_binary"])
-        self.vnc_bin.setPlaceholderText("vncviewer (automatico)")
+        self.vnc_bin.setPlaceholderText("vncviewer (automático)")
         form3.addRow("RDP", self.rdp_bin)
         form3.addRow("VNC", self.vnc_bin)
         layout.addWidget(binaries)
@@ -848,7 +992,7 @@ class SettingsDialog(QDialog):
         from ..vault import vault
 
         state = (
-            "Las credenciales se cifran con una contrasena maestra."
+            "Las credenciales se cifran con una contraseña maestra."
             if vault.mode == "master"
             else "Las credenciales se cifran con una clave local (fichero 0600)."
         )
@@ -858,8 +1002,8 @@ class SettingsDialog(QDialog):
         vbox.addWidget(label)
         row = QHBoxLayout()
         self.master_btn = QPushButton(
-            "Quitar contrasena maestra" if vault.mode == "master"
-            else "Definir contrasena maestra"
+            "Quitar contraseña maestra" if vault.mode == "master"
+            else "Definir contraseña maestra"
         )
         row.addWidget(self.master_btn)
         row.addStretch(1)

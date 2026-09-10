@@ -62,7 +62,33 @@ if [ -d "$QT_LIB" ]; then
     done
     rm -rf "$SITE/PyQt6/Qt6/qml" "$SITE/PyQt6/Qt6/translations" \
            "$SITE/PyQt6/Qt6/plugins/sqldrivers" "$SITE/PyQt6/Qt6/plugins/multimedia" \
-           "$SITE/PyQt6/Qt6/plugins/geometryloaders" 2>/dev/null || true
+           "$SITE/PyQt6/Qt6/plugins/geometryloaders" \
+           "$SITE/PyQt6/Qt6/plugins/sceneparsers" "$SITE/PyQt6/Qt6/plugins/renderers" \
+           "$SITE/PyQt6/Qt6/plugins/assetimporters" "$SITE/PyQt6/Qt6/plugins/texttospeech" \
+           "$SITE/PyQt6/Qt6/plugins/webview" 2>/dev/null || true
+    # el tema GTK arrastra todo GTK3 y ademas lo desactivamos en tiempo de ejecucion
+    rm -f "$SITE/PyQt6/Qt6/plugins/platformthemes/libqgtk3.so" 2>/dev/null || true
+
+    log "eliminando plugins huerfanos"
+    "$PYBIN" - "$SITE/PyQt6/Qt6" <<'PYORPHAN'
+import pathlib, re, subprocess, sys
+
+root = pathlib.Path(sys.argv[1])
+present = {p.name for p in (root / "lib").glob("*.so*")}
+removed = 0
+for plugin in (root / "plugins").rglob("*.so"):
+    try:
+        dump = subprocess.run(
+            ["objdump", "-p", str(plugin)], capture_output=True, text=True, timeout=20
+        ).stdout
+    except Exception:
+        continue
+    needed = set(re.findall(r"NEEDED\s+(\S+)", dump))
+    if any(n.startswith("libQt6") and n not in present for n in needed):
+        plugin.unlink()
+        removed += 1
+print(f"    plugins eliminados: {removed}")
+PYORPHAN
 fi
 
 # ------------------------------------------------------------ aplicacion
@@ -111,6 +137,24 @@ WRAP
     chmod +x "$APPDIR/usr/bin/$name"
     log "empaquetado: $name"
 }
+
+# Bibliotecas auxiliares que exige el plugin xcb de Qt y que muchas distros no
+# traen instaladas (libxcb-cursor0 es el caso tipico).
+QTDEPS="$APPDIR/usr/lib/qtdeps"
+mkdir -p "$QTDEPS"
+log "empaquetando dependencias del plugin xcb"
+LDCONFIG_OUT="$(/usr/sbin/ldconfig -p 2>/dev/null || ldconfig -p 2>/dev/null || true)"
+for soname in libxcb-cursor.so.0 libxcb-icccm.so.4 libxcb-image.so.0 \
+              libxcb-keysyms.so.1 libxcb-render-util.so.0 libxcb-util.so.1 \
+              libxcb-xkb.so.1 libxkbcommon.so.0 libxkbcommon-x11.so.0; do
+    # here-string en vez de tuberia: awk termina antes y provocaria SIGPIPE
+    src=$(awk -v s="$soname" '$1 == s && /x86-64/ {print $NF; exit}' <<< "$LDCONFIG_OUT")
+    if [ -n "$src" ] && [ -e "$src" ]; then
+        cp -L "$src" "$QTDEPS/$soname"
+    else
+        log "aviso: no se encontro $soname en el sistema"
+    fi
+done
 
 log "empaquetando visores"
 bundle_binary "$(command -v xfreerdp3 || command -v xfreerdp || true)" xfreerdp3
@@ -184,6 +228,7 @@ cat > "$APPDIR/AppRun" <<'APPRUN'
 HERE="$(dirname "$(readlink -f "$0")")"
 export APPDIR="$HERE"
 export PATH="$HERE/usr/bin:$PATH"
+export LD_LIBRARY_PATH="$HERE/usr/lib/qtdeps${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 # El embebido de ventanas exige XCB (bajo Wayland se usa XWayland).
 if [ -n "$DISPLAY" ] && [ -z "$REMOTEDECK_PLATFORM" ]; then
     export QT_QPA_PLATFORM=xcb

@@ -33,6 +33,7 @@ from ..store import Settings, Store
 from ..vault import vault
 from . import icons
 from .dialogs import (
+    AboutDialog,
     CredentialsPrompt,
     GroupDialog,
     MasterPasswordDialog,
@@ -45,7 +46,7 @@ from .tree import ConnectionTree
 
 
 class ImportPreviewDialog(QDialog):
-    """Previsualiza lo importado y deja elegir que se anade."""
+    """Previsualiza lo importado y deja elegir que se añade."""
 
     def __init__(self, result: importers.ImportResult, source: str, settings, parent=None):
         super().__init__(parent)
@@ -150,7 +151,7 @@ class WelcomePage(QWidget):
         layout.addWidget(title)
 
         subtitle = QLabel(
-            "Gestiona tus conexiones RDP y VNC en pestanas. "
+            "Gestiona tus conexiones RDP y VNC en pestañas. "
             "Haz doble clic en un equipo de la izquierda para conectarte."
         )
         subtitle.setObjectName("WelcomeSub")
@@ -164,9 +165,6 @@ class WelcomePage(QWidget):
         new_btn.setProperty("accent", True)
         new_btn.clicked.connect(window.new_server)
         row.addWidget(new_btn)
-        import_btn = QPushButton(icons.icon("import", c["text"]), "  Importar de Remmina")
-        import_btn.clicked.connect(window.import_remmina)
-        row.addWidget(import_btn)
         row.addStretch(1)
         layout.addLayout(row)
         layout.addStretch(1)
@@ -303,7 +301,12 @@ class MainWindow(QMainWindow):
         self.act_import_remmina = action("import", "Importar de Remmina", self.import_remmina)
         self.act_import_file = action("import", "Importar fichero (.rdg, .rdp, .json)", self.import_file)
         self.act_export = action("export", "Exportar conexiones", self.export_file)
-        self.act_refresh_status = action("network", "Comprobar estado", self.tree.refresh_status, "F5")
+        self.act_refresh_status = action(
+            "network", "Comprobar estado", self.tree.refresh_status, "F5",
+            "Prueba el puerto RDP/VNC de cada equipo y actualiza el indicador "
+            "verde (responde) o rojo (no responde). Se repite solo cada tanto; "
+            "el intervalo se cambia en Preferencias.",
+        )
         self.act_quit = action("close", "Salir", self.close, "Ctrl+Q")
         self.act_about = action("info", "Acerca de", self.show_about)
 
@@ -339,7 +342,7 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(self.act_quit)
 
-        session_menu = menubar.addMenu("&Sesion")
+        session_menu = menubar.addMenu("&Sesión")
         session_menu.addAction(self.act_connect)
         session_menu.addAction(self.act_reconnect)
         session_menu.addAction(self.act_disconnect)
@@ -394,9 +397,17 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------ alta
     def _target_group(self) -> Group:
+        """Grupo donde cae un servidor nuevo: el seleccionado, o el que lo contiene."""
         node = self.tree.current_node()
         if isinstance(node, Group):
             return node
+        if node is not None and node.parent is not None:
+            return node.parent
+        return self.store.root
+
+    def _sibling_group(self) -> Group:
+        """Grupo padre para crear un grupo hermano del seleccionado."""
+        node = self.tree.current_node()
         if node is not None and node.parent is not None:
             return node.parent
         return self.store.root
@@ -417,21 +428,33 @@ class MainWindow(QMainWindow):
         if item:
             self.tree.setCurrentItem(item)
 
-    def new_group(self) -> None:
+    def new_group(self, inside: bool = False) -> None:
+        """Por defecto el grupo nuevo queda al mismo nivel que el seleccionado."""
         group = Group(name="")
-        dialog = GroupDialog(group, self.settings, self, is_new=True)
+        target = self._target_group() if inside else self._sibling_group()
+        dialog = GroupDialog(
+            group, self.settings, self, is_new=True, store=self.store, parent_group=target
+        )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        self.store.add(group, self._target_group())
+        parent = self.store.find(dialog.selected_parent_id) or target
+        self.store.add(group, parent)
         self.save_store()
         self.tree.rebuild()
+        item = self.tree.item_for(group.id)
+        if item:
+            self.tree.setCurrentItem(item)
 
     def edit_selected(self) -> None:
         node = self.tree.current_node()
         if node is None:
             return
         if isinstance(node, Group):
-            if GroupDialog(node, self.settings, self).exec() == QDialog.DialogCode.Accepted:
+            dialog = GroupDialog(node, self.settings, self, store=self.store)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                new_parent = self.store.find(dialog.selected_parent_id)
+                if new_parent is not None and new_parent is not node.parent:
+                    self.store.move(node, new_parent)
                 self.save_store()
                 self.tree.rebuild()
             return
@@ -472,7 +495,7 @@ class MainWindow(QMainWindow):
         self.save_store()
         self.tree.rebuild()
 
-    # -------------------------------------------------------- conexion
+    # -------------------------------------------------------- conexión
     def connect_selected(self) -> None:
         servers = self.tree.selected_servers()
         if not servers:
@@ -529,6 +552,11 @@ class MainWindow(QMainWindow):
         self._update_actions()
 
     def current_session(self) -> SessionView | None:
+        # En pantalla completa la sesión sale del QTabWidget: hay que seguirla
+        # igual para que la barra de herramientas y los atajos actuen sobre ella.
+        for session in self.sessions:
+            if session.is_fullscreen:
+                return session
         widget = self.tabs.currentWidget()
         return widget if isinstance(widget, SessionView) else None
 
@@ -577,8 +605,8 @@ class MainWindow(QMainWindow):
         ):
             answer = QMessageBox.question(
                 self,
-                "Cerrar sesion",
-                f"La sesion con {session.server.label} esta activa. Cerrarla?",
+                "Cerrar sesión",
+                f"La sesión con {session.server.label} esta activa. Cerrarla?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if answer != QMessageBox.StandardButton.Yes:
@@ -627,7 +655,7 @@ class MainWindow(QMainWindow):
         if not servers:
             QMessageBox.information(
                 self, "Wake-on-LAN",
-                "Ningun equipo seleccionado tiene una MAC configurada.",
+                "Ningún equipo seleccionado tiene una MAC configurada.",
             )
             return
         sent = []
@@ -720,7 +748,7 @@ class MainWindow(QMainWindow):
         QMessageBox.information(
             self,
             "Exportar",
-            "Conexiones exportadas.\nLas contrasenas van cifradas con la clave de "
+            "Conexiones exportadas.\nLas contraseñas van cifradas con la clave de "
             "este equipo: en otro equipo habra que volver a introducirlas.",
         )
 
@@ -745,8 +773,8 @@ class MainWindow(QMainWindow):
         if vault.mode == "master":
             answer = QMessageBox.question(
                 self,
-                "Contrasena maestra",
-                "Se quitara la contrasena maestra y las credenciales pasaran a "
+                "Contraseña maestra",
+                "Se quitara la contraseña maestra y las credenciales pasaran a "
                 "cifrarse con una clave local. Continuar?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
@@ -764,8 +792,8 @@ class MainWindow(QMainWindow):
             self._restore_secrets(secrets)
         self.save_store()
         dialog.master_btn.setText(
-            "Quitar contrasena maestra" if vault.mode == "master"
-            else "Definir contrasena maestra"
+            "Quitar contraseña maestra" if vault.mode == "master"
+            else "Definir contraseña maestra"
         )
 
     def _collect_secrets(self) -> dict[str, tuple[str, str]]:
@@ -793,16 +821,7 @@ class MainWindow(QMainWindow):
                 node.rdp.gateway_secret = v.encrypt(gateway)
 
     def show_about(self) -> None:
-        QMessageBox.about(
-            self,
-            f"Acerca de {APP_NAME}",
-            f"<h3>{APP_NAME} {__version__}</h3>"
-            "<p>Gestor de conexiones RDP y VNC con sesiones embebidas en pestanas.</p>"
-            "<p>Usa <b>xfreerdp</b> (FreeRDP 3) para RDP y <b>vncviewer</b> "
-            "(TigerVNC) para VNC.</p>"
-            "<p>Atajos: F11 pantalla completa · Ctrl+R reconectar · "
-            "Ctrl+W cerrar sesion · F5 comprobar estado.</p>",
-        )
+        AboutDialog(self.settings, self).exec()
 
     # -------------------------------------------------------- contexto
     def _tree_menu(self, position) -> None:
@@ -817,7 +836,11 @@ class MainWindow(QMainWindow):
             menu.addAction(icons.icon("power", c["text_dim"]), "Wake-on-LAN", self.wake_selected)
         menu.addSeparator()
         menu.addAction(icons.icon("add", c["text_dim"]), "Nuevo servidor aqui", self.new_server)
-        menu.addAction(icons.icon("folder-add", c["text_dim"]), "Nuevo grupo aqui", self.new_group)
+        menu.addAction(
+            icons.icon("folder-add", c["text_dim"]),
+            "Nuevo grupo dentro" if isinstance(node, Group) else "Nuevo grupo",
+            lambda: self.new_group(inside=isinstance(node, Group)),
+        )
         if node is not None:
             menu.addSeparator()
             menu.addAction(icons.icon("edit", c["text_dim"]), "Editar", self.edit_selected)

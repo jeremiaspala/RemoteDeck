@@ -182,7 +182,7 @@ QPushButton[flat="true"] {{ background: transparent; border: none; padding: 6px;
 QPushButton[flat="true"]:hover {{ background: {c['panel_alt']}; }}
 QPushButton[danger="true"]:hover {{ border-color: {c['error']}; color: {c['error']}; }}
 
-/* ---------- Pestanas ---------- */
+/* ---------- Pestañas ---------- */
 QTabWidget::pane {{ border: none; background: {c['bg']}; }}
 QTabBar {{ background: {c['bg_alt']}; qproperty-drawBase: 0; }}
 QTabBar::tab {{
@@ -294,7 +294,7 @@ QTabWidget#Editor QTabBar::tab {{ padding: 8px 12px; }}
 QScrollArea {{ border: none; background: transparent; }}
 QScrollArea > QWidget > QWidget {{ background: transparent; }}
 
-/* ---------- Sesion ---------- */
+/* ---------- Sesión ---------- */
 #SessionOverlay {{ background: {c['bg']}; }}
 #SessionTitle {{ font-size: 17px; font-weight: 600; }}
 #SessionMsg {{ color: {c['text_dim']}; }}

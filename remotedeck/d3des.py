@@ -1,6 +1,6 @@
 """DES (un bloque, ECB) en Python puro.
 
-Se usa solo como respaldo para generar el fichero de contrasena de VNC cuando
+Se usa solo como respaldo para generar el fichero de contraseña de VNC cuando
 ``vncpasswd`` no esta disponible. VNC usa DES con una clave fija cuyos bytes
 llevan los bits invertidos (herencia de la implementacion d3des original).
 """
@@ -154,7 +154,7 @@ def des_decrypt_block(key: bytes, block: bytes) -> bytes:
 
 
 def des3_cbc_decrypt(key24: bytes, iv: bytes, data: bytes) -> bytes:
-    """3DES-EDE en modo CBC (usado por Remmina para guardar contrasenas)."""
+    """3DES-EDE en modo CBC (usado por Remmina para guardar contraseñas)."""
     if len(key24) != 24:
         raise ValueError("la clave 3DES debe ser de 24 bytes")
     k1, k2, k3 = key24[:8], key24[8:16], key24[16:]

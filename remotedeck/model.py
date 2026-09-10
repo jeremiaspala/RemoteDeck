@@ -98,8 +98,8 @@ class Wol:
     mac: str = ""
     broadcast: str = "255.255.255.255"
     port: int = 9
-    auto: bool = False  # despertar automaticamente antes de conectar
-    wait_seconds: int = 90  # espera maxima a que el puerto responda
+    auto: bool = False  # despertar automáticamente antes de conectar
+    wait_seconds: int = 90  # espera máxima a que el puerto responda
 
     @property
     def enabled(self) -> bool:
@@ -111,7 +111,7 @@ class Display:
     mode: str = "fit"  # fit | fixed | fullscreen
     width: int = 1920
     height: int = 1080
-    embed: bool = True  # embebido en pestana o ventana externa
+    embed: bool = True  # embebido en pestaña o ventana externa
 
 
 @dataclass
@@ -157,7 +157,7 @@ class Server:
 
     def effective_credentials(self) -> Credentials:
         """Resuelve la herencia de credenciales por la cadena de grupos."""
-        if not self.credentials.inherit and not self.credentials.is_empty():
+        if not self.credentials.inherit:
             return self.credentials
         node = self.parent
         while node is not None:

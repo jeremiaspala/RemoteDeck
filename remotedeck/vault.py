@@ -8,8 +8,8 @@ Dos modos:
   * ``local``  : la clave vive en un fichero 0600 dentro de ~/.config. Protege
                  frente a lectura casual del JSON, no frente a alguien con
                  acceso a la cuenta.
-  * ``master`` : la clave se deriva de una contrasena maestra que se pide al
-                 abrir la aplicacion. Nada utilizable queda en disco.
+  * ``master`` : la clave se deriva de una contraseña maestra que se pide al
+                 abrir la aplicación. Nada utilizable queda en disco.
 """
 
 from __future__ import annotations
@@ -102,11 +102,11 @@ class Vault:
     def unlock(self, password: str | None = None) -> None:
         if self.meta.mode == "master":
             if not password:
-                raise VaultLocked("se requiere contrasena maestra")
+                raise VaultLocked("se requiere contraseña maestra")
             salt = base64.b64decode(self.meta.salt)
             key = _derive(password.encode(), salt)
             if not self._check_ok(key):
-                raise BadPassword("contrasena maestra incorrecta")
+                raise BadPassword("contraseña maestra incorrecta")
             self._key = key
         else:
             self._key = self._local_key()
@@ -176,7 +176,7 @@ class Vault:
         if not token:
             return ""
         if not token.startswith(PREFIX):
-            return token  # texto plano heredado de una importacion
+            return token  # texto plano heredado de una importación
         if self._key is None:
             raise VaultLocked("vault cerrado")
         return self._decrypt_with(self._key, token)

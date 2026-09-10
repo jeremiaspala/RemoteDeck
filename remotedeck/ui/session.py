@@ -1,4 +1,4 @@
-"""Widget de sesion: lanza el visor externo y lo embebe en la pestana."""
+"""Widget de sesión: lanza el visor externo y lo embebe en la pestaña."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import time
 from enum import Enum
 
 from PyQt6.QtCore import (
+    QPoint,
     QProcess,
     QProcessEnvironment,
     QSize,
@@ -14,8 +15,9 @@ from PyQt6.QtCore import (
     QTimer,
     pyqtSignal,
 )
-from PyQt6.QtGui import QKeySequence, QShortcut
+from PyQt6.QtGui import QCursor, QGuiApplication, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
+    QApplication,
     QHBoxLayout,
     QLabel,
     QPlainTextEdit,
@@ -50,7 +52,7 @@ STATE_TEXT = {
 
 
 class WakeWorker(QThread):
-    """Envia el magic packet y espera a que el puerto responda."""
+    """Envía el magic packet y espera a que el puerto responda."""
 
     progress = pyqtSignal(str)
     finished_ok = pyqtSignal(bool)
@@ -87,6 +89,132 @@ class WakeWorker(QThread):
         self.finished_ok.emit(False)
 
 
+
+
+class FullscreenBar(QWidget):
+    """Barra flotante para salir de pantalla completa.
+
+    Es una ventana propia y no roba el foco: mientras la sesión tiene el
+    teclado (y por tanto F11 o Esc no llegan a la aplicación), el raton sigue
+    siendo una via segura para volver.
+    """
+
+    def __init__(self, session: "SessionView") -> None:
+        super().__init__(None)
+        self.session = session
+        c = palette(session.settings["theme"], session.settings["accent"])
+        self.setWindowFlags(
+            Qt.WindowType.Tool
+            | Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.X11BypassWindowManagerHint
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+        self.setObjectName("FullscreenBar")
+        self.setStyleSheet(
+            f"""
+            #FullscreenBar {{
+                background: {c['panel']};
+                border: 1px solid {c['border']};
+                border-top: none;
+                border-bottom-left-radius: 10px;
+                border-bottom-right-radius: 10px;
+            }}
+            QLabel {{ color: {c['text']}; font-weight: 600; }}
+            QPushButton {{
+                background: transparent; border: 1px solid transparent;
+                border-radius: 7px; padding: 6px 10px; color: {c['text_dim']};
+            }}
+            QPushButton:hover {{ background: {c['panel_alt']}; color: {c['text']}; }}
+            QPushButton:checked {{ background: {c['accent_soft']}; color: {c['text']}; }}
+            """
+        )
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(14, 7, 10, 8)
+        layout.setSpacing(6)
+
+        title = QLabel(f"{session.server.label} · {session.server.target}")
+        layout.addWidget(title)
+        layout.addSpacing(14)
+
+        self.pin_btn = QPushButton(icons.icon("star", c["text_dim"]), "")
+        self.pin_btn.setCheckable(True)
+        self.pin_btn.setToolTip("Mantener esta barra visible")
+        layout.addWidget(self.pin_btn)
+
+        reconnect = QPushButton(icons.icon("refresh", c["text_dim"]), "")
+        reconnect.setToolTip("Reconectar")
+        reconnect.clicked.connect(session.reconnect)
+        layout.addWidget(reconnect)
+
+        exit_btn = QPushButton(icons.icon("fullscreen", c["text_dim"]), "  Salir (Esc)")
+        exit_btn.setToolTip("Salir de pantalla completa")
+        exit_btn.clicked.connect(session.exit_fullscreen)
+        layout.addWidget(exit_btn)
+
+        close_btn = QPushButton(icons.icon("close", c["text_dim"]), "")
+        close_btn.setToolTip("Cerrar la sesión")
+        close_btn.clicked.connect(lambda: session.requestClose.emit(session))
+        layout.addWidget(close_btn)
+
+        self.adjustSize()
+        self._grace_until = 0.0
+        self._watch = QTimer(self)
+        self._watch.setInterval(180)
+        self._watch.timeout.connect(self._follow_cursor)
+
+    @property
+    def pinned(self) -> bool:
+        return self.pin_btn.isChecked()
+
+    def _screen_geometry(self):
+        screen = self.session.screen() or QGuiApplication.primaryScreen()
+        return screen.geometry()
+
+    def place(self) -> None:
+        geometry = self._screen_geometry()
+        self.adjustSize()
+        self.move(
+            geometry.x() + (geometry.width() - self.width()) // 2,
+            geometry.y(),
+        )
+
+    def start(self) -> None:
+        self.place()
+        self.show()
+        self.raise_()
+        # unos segundos de cortesia para que se vea donde esta el boton de salir
+        self._grace_until = time.monotonic() + 4.5
+        self._watch.start()
+        QTimer.singleShot(4500, self._auto_hide)
+
+    def stop(self) -> None:
+        self._watch.stop()
+        self.hide()
+
+    def _auto_hide(self) -> None:
+        if not self.pinned and self.isVisible():
+            self.hide()
+
+    def _follow_cursor(self) -> None:
+        if not self.session.is_fullscreen:
+            self.stop()
+            return
+        geometry = self._screen_geometry()
+        pos = QCursor.pos()
+        near_top = pos.y() <= geometry.y() + 2 and geometry.contains(pos)
+        if near_top and not self.isVisible():
+            self.place()
+            self.show()
+            self.raise_()
+        elif self.isVisible() and not self.pinned:
+            if (
+                time.monotonic() > self._grace_until
+                and pos.y() > geometry.y() + self.height() + 30
+            ):
+                self.hide()
+
 class SessionView(QWidget):
     stateChanged = pyqtSignal(object)
     requestClose = pyqtSignal(object)
@@ -111,6 +239,8 @@ class SessionView(QWidget):
         self._started_at = 0.0
         self._fullscreen = False
         self._reparented = False
+        self._bar: FullscreenBar | None = None
+        self._closing = False
         self.restore_cb = None  # lo fija la ventana principal
 
         self.setObjectName("SessionView")
@@ -193,6 +323,8 @@ class SessionView(QWidget):
         self.overlay.raise_()
 
         QShortcut(QKeySequence("Ctrl+Alt+Shift+F"), self, activated=self.toggle_fullscreen)
+        QShortcut(QKeySequence("F11"), self, activated=self.toggle_fullscreen)
+        QShortcut(QKeySequence("Esc"), self, activated=self.exit_fullscreen)
 
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
@@ -232,10 +364,11 @@ class SessionView(QWidget):
     def status_text(self) -> str:
         return STATE_TEXT.get(self.state, "")
 
-    # ------------------------------------------------------- conexion
+    # ------------------------------------------------------- conexión
     def start(self) -> None:
         if self.state in (State.STARTING, State.CONNECTED, State.WAKING):
             return
+        self._closing = False
         self._log.clear()
         self.log_view.clear()
         if self.server.wol.auto and self.server.wol.enabled:
@@ -271,7 +404,7 @@ class SessionView(QWidget):
         self._set_state(State.STARTING, f"Conectando a {self.server.target}...")
         embed = self.server.display.embed and x11.available()
         if not x11.available():
-            self.log("X11 no disponible: la sesion se abrira en ventana externa.")
+            self.log("X11 no disponible: la sesión se abrira en ventana externa.")
 
         size = self._target_size()
         parent_xid = int(self.container.winId()) if embed else None
@@ -317,7 +450,7 @@ class SessionView(QWidget):
         else:
             self._set_state(State.CONNECTED, "")
             self.overlay.setVisible(True)
-            self.message.setText("Sesion abierta en una ventana externa.")
+            self.message.setText("Sesión abierta en una ventana externa.")
 
     def _target_size(self) -> tuple[int, int]:
         d = self.server.display
@@ -338,7 +471,7 @@ class SessionView(QWidget):
                 self._set_state(
                     State.FAILED,
                     "No se pudo embeber la ventana del visor. Revisa el registro "
-                    "o desactiva 'Embeber en pestana' en las opciones del servidor.",
+                    "o desactiva 'Embeber en pestaña' en las opciones del servidor.",
                 )
             return
 
@@ -348,7 +481,11 @@ class SessionView(QWidget):
         if self.server.protocol == RDP:
             kids = conn.children(parent_xid)
             if kids:
-                self._attach(kids[-1])
+                def area(win: int) -> int:
+                    geometry = conn.geometry(win)
+                    return geometry[2] * geometry[3] if geometry else 0
+
+                self._attach(max(kids, key=area))
             return
 
         # VNC y cualquier visor sin soporte de parent-window: reparentar.
@@ -369,13 +506,15 @@ class SessionView(QWidget):
         x11.shared().map(window)
         self._set_state(State.CONNECTED, "")
         self._watch_timer.start()
+        if self.server.display.mode == "fullscreen":
+            QTimer.singleShot(600, self.enter_fullscreen)
         # algunos visores se recolocan solos al terminar de arrancar
         for delay in (250, 700, 1500):
             QTimer.singleShot(delay, self._apply_child_geometry)
         QTimer.singleShot(400, self.focus_session)
 
     def _desired_geometry(self) -> tuple[int, int]:
-        """Tamano que debe tener la ventana embebida."""
+        """Tamaño que debe tener la ventana embebida."""
         d = self.server.display
         if d.mode == "fixed":
             return d.width, d.height
@@ -425,29 +564,32 @@ class SessionView(QWidget):
         self.child_window = None
         if self.launch:
             self.launch.cleanup()
-        if self.state == State.IDLE:
+        if self.state == State.IDLE or self._closing:
             return
         reason = self._diagnose(code)
         if code == 0:
-            self._set_state(State.DISCONNECTED, "Sesion finalizada.")
+            self._set_state(State.DISCONNECTED, "Sesión finalizada.")
         else:
             self._set_state(State.FAILED, reason)
 
     def _diagnose(self, code: int) -> str:
         text = "\n".join(self._log[-60:]).lower()
         if "logon failure" in text or "0x00020009" in text or "authentication" in text:
-            return "Fallo de autenticacion: revisa usuario, dominio y contrasena."
+            return "Fallo de autenticación: revisa usuario, dominio y contraseña."
         if "connection refused" in text or "errconnect_connect_failed" in text:
-            return f"Conexion rechazada por {self.server.target}."
+            return f"Conexión rechazada por {self.server.target}."
         if "no route to host" in text or "unreachable" in text:
             return f"{self.server.host} no es alcanzable."
         if "certificate" in text:
             return "Problema con el certificado del servidor."
         if "authentication failure" in text or "auth failed" in text:
-            return "Autenticacion VNC rechazada."
+            return "Autenticación VNC rechazada."
         return f"El visor termino con codigo {code}."
 
     def stop(self, quiet: bool = False) -> None:
+        self._closing = True
+        if self._bar is not None:
+            self._bar.stop()
         self._find_timer.stop()
         self._watch_timer.stop()
         if self.wake_worker:
@@ -470,6 +612,10 @@ class SessionView(QWidget):
             self.launch.cleanup()
 
     # --------------------------------------------------- pantalla completa
+    @property
+    def is_fullscreen(self) -> bool:
+        return self._fullscreen
+
     def toggle_fullscreen(self) -> None:
         if self._fullscreen:
             self.exit_fullscreen()
@@ -483,18 +629,30 @@ class SessionView(QWidget):
         self.setParent(None)
         self.setWindowFlags(Qt.WindowType.Window)
         self.showFullScreen()
+        if self._bar is None:
+            self._bar = FullscreenBar(self)
         QTimer.singleShot(150, self._apply_child_geometry)
-        QTimer.singleShot(300, self.focus_session)
+        QTimer.singleShot(250, self._bar.start)
+        QTimer.singleShot(400, self.focus_session)
 
     def exit_fullscreen(self) -> None:
         if not self._fullscreen:
             return
         self._fullscreen = False
+        if self._bar is not None:
+            self._bar.stop()
         self.setWindowFlags(Qt.WindowType.Widget)
         self.showNormal()
         if self.restore_cb is not None:
             self.restore_cb(self)
         QTimer.singleShot(150, self._apply_child_geometry)
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        if self._fullscreen:
+            self.exit_fullscreen()
+            event.ignore()
+            return
+        super().closeEvent(event)
 
     def keyPressEvent(self, event) -> None:  # noqa: N802
         if self._fullscreen and event.key() == Qt.Key.Key_Escape:

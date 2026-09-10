@@ -12,7 +12,7 @@ def _force_x11() -> None:
         os.environ["QT_QPA_PLATFORM"] = os.environ["REMOTEDECK_PLATFORM"]
     elif os.environ.get("DISPLAY"):
         os.environ["QT_QPA_PLATFORM"] = "xcb"
-    # Los dialogos nativos de KDE/GNOME y el portal xdg anaden latencia (y a
+    # Los dialogos nativos de KDE/GNOME y el portal xdg añaden latencia (y a
     # veces bloqueos de varios segundos) al abrir menus y ventanas de opciones.
     os.environ.setdefault("QT_NO_XDG_DESKTOP_PORTAL", "1")
     os.environ.setdefault("QT_QPA_PLATFORMTHEME", "")
@@ -54,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
                 vault.unlock(dialog.password())
                 break
             except BadPassword:
-                QMessageBox.warning(None, APP_NAME, "Contrasena maestra incorrecta.")
+                QMessageBox.warning(None, APP_NAME, "Contraseña maestra incorrecta.")
         else:
             return 1
     else:

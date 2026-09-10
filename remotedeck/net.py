@@ -1,4 +1,4 @@
-"""Utilidades de red: Wake-on-LAN, chequeo de puerto y resolucion de MAC."""
+"""Utilidades de red: Wake-on-LAN, chequeo de puerto y resolución de MAC."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ def magic_packet(mac: str) -> bytes:
 
 
 def wake(mac: str, broadcast: str = "255.255.255.255", port: int = 9) -> None:
-    """Envia el magic packet. Repite en los puertos habituales 9 y 7."""
+    """Envía el magic packet. Repite en los puertos habituales 9 y 7."""
     packet = magic_packet(mac)
     ports = {port, 9, 7}
     targets = {broadcast or "255.255.255.255", "255.255.255.255"}

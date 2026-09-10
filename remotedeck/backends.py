@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 import shutil
 import subprocess
 from dataclasses import dataclass, field
@@ -104,7 +105,7 @@ def build_rdp(
     args.append(f"/network:{o.network}")
     if o.gfx:
         # AVC420/AVC444 solo existen si FreeRDP se compilo con H.264; RFX y
-        # progressive estan siempre disponibles.
+        # progressive están siempre disponibles.
         args.append("/gfx:RFX:on,progressive:on,small-cache:on")
     if o.security != "auto":
         args.append(f"/sec:{o.security}")
@@ -147,7 +148,7 @@ def build_rdp(
     args += ["+auto-reconnect", "/auto-reconnect-max-retries:3", "/log-level:INFO"]
     args += _split_extra(o.extra_args)
 
-    # /args-from:stdin evita que la contrasena aparezca en la tabla de procesos.
+    # /args-from:stdin evita que la contraseña aparezca en la tabla de procesos.
     payload = ("\n".join(args) + "\n").encode()
     return Launch(argv=[binary, "/args-from:stdin"], stdin_data=payload)
 
@@ -156,7 +157,7 @@ def build_rdp(
 def _vnc_password_file(password: str) -> Path | None:
     if not password:
         return None
-    path = runtime_dir() / f"vnc-{os.getpid()}-{id(password) & 0xFFFF:x}.pwd"
+    path = runtime_dir() / f"vnc-{os.getpid()}-{secrets.token_hex(4)}.pwd"
     try:
         result = subprocess.run(
             ["vncpasswd", "-f"],
@@ -266,7 +267,7 @@ _D3DES_KEY = b"\x17\x52\x6b\x06\x23\x4e\x58\x07"
 def _obfuscate_vnc_password(password: str) -> bytes:
     """Fallback en Python puro si no hay vncpasswd: DES con la clave fija VNC.
 
-    El formato del fichero es la contrasena (8 bytes, rellenada con ceros)
+    El formato del fichero es la contraseña (8 bytes, rellenada con ceros)
     cifrada con DES usando la clave fija de VNC con los bits de cada byte
     invertidos.
     """

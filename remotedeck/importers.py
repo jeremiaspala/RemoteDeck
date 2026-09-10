@@ -61,7 +61,7 @@ def _remmina_decrypt(secret: bytes, token: str) -> str:
 
 
 def _keyring_lookup(profile: Path) -> str:
-    """Remmina >= 1.4 guarda las contrasenas en libsecret."""
+    """Remmina >= 1.4 guarda las contraseñas en libsecret."""
     found = _keyring_lookup_gi(profile)
     if found:
         return found
@@ -173,7 +173,7 @@ def import_remmina(paths: list[Path] | None = None, use_keyring: bool = True) ->
             creds.set_password(plain)
         elif raw_pw:
             result.warnings.append(
-                f"{srv.label}: contrasena no recuperable (guardada en el llavero)"
+                f"{srv.label}: contraseña no recuperable (guardada en el llavero)"
             )
 
         _apply_remmina_display(srv, cfg)
@@ -200,7 +200,7 @@ def import_remmina(paths: list[Path] | None = None, use_keyring: bool = True) ->
         else:
             result.servers.append(srv)
 
-    # todos los servidores, esten sueltos o dentro de grupos
+    # todos los servidores, estén sueltos o dentro de grupos
     all_servers = list(result.servers)
     for g in result.groups:
         all_servers.extend(g.servers())
