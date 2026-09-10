@@ -237,4 +237,13 @@ STRINGS = {
     "Marcar como favorito": "Mark as favourite",
     "Wake-on-LAN": "Wake-on-LAN",
     "Idioma": "Language",
+    'Ocultar ventana': 'Hide window',
+    'Mostrar ventana': 'Show window',
+    'Sistema': 'System',
+    'Mostrar icono en la bandeja del sistema': 'Show icon in the system tray',
+    'Al cerrar la ventana, minimizar a la bandeja': 'When closing the window, minimise to the tray',
+    'Iniciar con el sistema': 'Start with the system',
+    'Iniciar minimizado en la bandeja': 'Start minimised in the tray',
+    'Este escritorio no expone una bandeja del sistema.': 'This desktop does not provide a system tray.',
+    'Sigue abierto en la bandeja del sistema.': 'Still running in the system tray.',
 }

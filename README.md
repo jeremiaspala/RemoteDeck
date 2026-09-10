@@ -31,6 +31,10 @@ instala nada.
   `.rdg` de RDCMan, de `.rdp` sueltos y de su propio JSON.
 - **Credenciales cifradas** en disco, con contraseña maestra opcional. Nunca
   viajan por la línea de comandos.
+- **Icono en la bandeja del sistema**: acceso rápido para mostrar la ventana o
+  conectarte a cualquier equipo sin abrirla. Al cerrar la ventana la aplicación
+  sigue viva en la bandeja, y puede arrancar con el sistema y quedarse
+  minimizada.
 - **Cuatro idiomas**: español (el principal), inglés, francés y alemán.
 - Búsqueda incremental, favoritos, notas y etiquetas por equipo, tema oscuro o
   claro y color de acento configurable.

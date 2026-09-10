@@ -31,6 +31,7 @@ from .. import net
 from ..model import RDP, VNC, Credentials, Group, Server
 from . import icons
 from .brand import FUNDAMENTA_URL, fundamenta_pixmap
+from .tray import TrayIcon, autostart_enabled, set_autostart
 from .theme import palette
 
 
@@ -946,6 +947,7 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.settings = settings
         self._old_language = settings["language"]
+        self._old_tray = settings["tray_enabled"]
         self.setWindowTitle(tr("Preferencias"))
         self.setMinimumWidth(520)
         layout = QVBoxLayout(self)
@@ -992,6 +994,34 @@ class SettingsDialog(QDialog):
         form2.addRow(tr("Intervalo"), self.interval_spin)
         layout.addWidget(behaviour)
 
+        system = QGroupBox(tr("Sistema"))
+        sys_layout = QVBoxLayout(system)
+        sys_layout.setSpacing(9)
+        sys_layout.setContentsMargins(14, 8, 14, 12)
+        self.tray_check = QCheckBox(tr("Mostrar icono en la bandeja del sistema"))
+        self.tray_check.setChecked(bool(settings["tray_enabled"]))
+        self.close_tray_check = QCheckBox(tr("Al cerrar la ventana, minimizar a la bandeja"))
+        self.close_tray_check.setChecked(bool(settings["close_to_tray"]))
+        self.autostart_check = QCheckBox(tr("Iniciar con el sistema"))
+        self.autostart_check.setChecked(autostart_enabled())
+        self.minimized_check = QCheckBox(tr("Iniciar minimizado en la bandeja"))
+        self.minimized_check.setChecked(bool(settings["start_minimized"]))
+        for widget in (
+            self.tray_check, self.close_tray_check,
+            self.autostart_check, self.minimized_check,
+        ):
+            sys_layout.addWidget(widget)
+        self.tray_check.toggled.connect(self._tray_toggled)
+        self._tray_toggled(self.tray_check.isChecked())
+        if not TrayIcon.available():
+            self.tray_check.setChecked(False)
+            self.tray_check.setEnabled(False)
+            hint = QLabel(tr("Este escritorio no expone una bandeja del sistema."))
+            hint.setObjectName("SessionMsg")
+            hint.setWordWrap(True)
+            sys_layout.addWidget(hint)
+        layout.addWidget(system)
+
         binaries = QGroupBox(tr("Visores"))
         form3 = QFormLayout(binaries)
         self.rdp_bin = QLineEdit(settings["rdp_binary"])
@@ -1035,9 +1065,17 @@ class SettingsDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
+    def _tray_toggled(self, enabled: bool) -> None:
+        self.close_tray_check.setEnabled(enabled)
+        self.minimized_check.setEnabled(enabled)
+
     @property
     def language_changed(self) -> bool:
         return self._old_language != self.lang_combo.currentData()
+
+    @property
+    def tray_changed(self) -> bool:
+        return self._old_tray != self.tray_check.isChecked()
 
     def _accept(self) -> None:
         self.settings["language"] = self.lang_combo.currentData()
@@ -1051,5 +1089,16 @@ class SettingsDialog(QDialog):
         self.settings["status_interval"] = self.interval_spin.value()
         self.settings["rdp_binary"] = self.rdp_bin.text().strip()
         self.settings["vnc_binary"] = self.vnc_bin.text().strip()
+        self.settings["tray_enabled"] = self.tray_check.isChecked()
+        self.settings["close_to_tray"] = self.close_tray_check.isChecked()
+        self.settings["start_minimized"] = (
+            self.minimized_check.isChecked() and self.tray_check.isChecked()
+        )
+        try:
+            set_autostart(
+                self.autostart_check.isChecked(), self.settings["start_minimized"]
+            )
+        except OSError as exc:
+            QMessageBox.warning(self, tr("Iniciar con el sistema"), str(exc))
         self.settings.save()
         self.accept()

@@ -232,4 +232,13 @@ STRINGS = {
     "xfreerdp3 (automático)": "xfreerdp3 (automatique)",
     "y": "et",
     "¿Quieres importarlos ahora?": "Voulez-vous les importer maintenant ?",
+    'Ocultar ventana': 'Masquer la fenêtre',
+    'Mostrar ventana': 'Afficher la fenêtre',
+    'Sistema': 'Système',
+    'Mostrar icono en la bandeja del sistema': "Afficher l'icône dans la zone de notification",
+    'Al cerrar la ventana, minimizar a la bandeja': 'En fermant la fenêtre, réduire dans la zone de notification',
+    'Iniciar con el sistema': 'Démarrer avec le système',
+    'Iniciar minimizado en la bandeja': 'Démarrer réduit dans la zone de notification',
+    'Este escritorio no expone una bandeja del sistema.': 'Ce bureau ne propose pas de zone de notification.',
+    'Sigue abierto en la bandeja del sistema.': 'Toujours actif dans la zone de notification.',
 }

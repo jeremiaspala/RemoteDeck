@@ -18,8 +18,14 @@ def _force_x11() -> None:
     os.environ.setdefault("QT_QPA_PLATFORMTHEME", "")
 
 
+MINIMIZED_FLAGS = ("--minimized", "--hidden", "-m")
+
+
 def main(argv: list[str] | None = None) -> int:
     _force_x11()
+    args = list(argv if argv is not None else sys.argv)
+    start_minimized = any(flag in args for flag in MINIMIZED_FLAGS)
+    args = [a for a in args if a not in MINIMIZED_FLAGS]
 
     from PyQt6.QtCore import Qt
     from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
@@ -39,7 +45,9 @@ def main(argv: list[str] | None = None) -> int:
     set_language(settings["language"])
 
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
-    app = QApplication(argv if argv is not None else sys.argv)
+    app = QApplication(args)
+    # con icono en la bandeja, cerrar la ventana no debe terminar el proceso
+    app.setQuitOnLastWindowClosed(False)
     _disable_animations(app)
     app.setApplicationName(APP_NAME)
     app.setApplicationDisplayName(APP_NAME)
@@ -68,9 +76,13 @@ def main(argv: list[str] | None = None) -> int:
 
     while True:
         window = MainWindow(store, settings)
-        window.show()
+        if start_minimized or settings["start_minimized"]:
+            window.start_hidden()
+            start_minimized = False
+        else:
+            window.show()
 
-        if not store.servers() and not settings["first_run_done"]:
+        if window.isVisible() and not store.servers() and not settings["first_run_done"]:
             settings["first_run_done"] = True
             settings.save()
             _offer_first_import(window, store, importers)

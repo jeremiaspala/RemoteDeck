@@ -232,4 +232,13 @@ STRINGS = {
     "xfreerdp3 (automático)": "xfreerdp3 (automatisch)",
     "y": "und",
     "¿Quieres importarlos ahora?": "Möchten Sie sie jetzt importieren?",
+    'Ocultar ventana': 'Fenster ausblenden',
+    'Mostrar ventana': 'Fenster anzeigen',
+    'Sistema': 'System',
+    'Mostrar icono en la bandeja del sistema': 'Symbol im Systemabschnitt der Kontrollleiste anzeigen',
+    'Al cerrar la ventana, minimizar a la bandeja': 'Beim Schließen des Fensters in die Kontrollleiste minimieren',
+    'Iniciar con el sistema': 'Mit dem System starten',
+    'Iniciar minimizado en la bandeja': 'Minimiert in der Kontrollleiste starten',
+    'Este escritorio no expone una bandeja del sistema.': 'Diese Arbeitsumgebung bietet keinen Systemabschnitt.',
+    'Sigue abierto en la bandeja del sistema.': 'Läuft weiter im Systemabschnitt der Kontrollleiste.',
 }

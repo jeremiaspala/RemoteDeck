@@ -31,6 +31,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "last_import_dir": "",
     "fullscreen_hotkey": "F11",
     "first_run_done": False,
+    "tray_enabled": True,
+    "close_to_tray": True,
+    "start_minimized": False,
 }
 
 

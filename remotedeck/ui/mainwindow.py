@@ -43,6 +43,7 @@ from .dialogs import (
     SettingsDialog,
 )
 from .session import SessionView, State
+from .tray import TrayIcon
 from .theme import palette, stylesheet
 from .tree import ConnectionTree
 
@@ -182,6 +183,9 @@ class MainWindow(QMainWindow):
         self.settings = settings
         self.sessions: list[SessionView] = []
         self.restart_requested = False
+        self.tray: TrayIcon | None = None
+        self._quitting = False
+        self._tray_hint_shown = False
 
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(icons.app_icon(settings["accent"]))
@@ -193,6 +197,7 @@ class MainWindow(QMainWindow):
         self.tree.rebuild()
         self.tree.start_status_checks()
         self._update_actions()
+        self._setup_tray()
         QTimer.singleShot(800, self._connect_startup_servers)
 
     # ------------------------------------------------------------- UI
@@ -313,7 +318,7 @@ class MainWindow(QMainWindow):
             "verde (responde) o rojo (no responde). Se repite solo cada tanto; "
             "el intervalo se cambia en Preferencias."),
         )
-        self.act_quit = action("close", tr("Salir"), self.close, "Ctrl+Q")
+        self.act_quit = action("close", tr("Salir"), self.quit_application, "Ctrl+Q")
         self.act_about = action("info", tr("Acerca de"), self.show_about)
 
         toolbar = self.addToolBar("Principal")
@@ -366,10 +371,57 @@ class MainWindow(QMainWindow):
         help_menu = menubar.addMenu(tr("A&yuda"))
         help_menu.addAction(self.act_about)
 
+    # ------------------------------------------------------------ bandeja
+    def _setup_tray(self) -> None:
+        if not self.settings["tray_enabled"] or not TrayIcon.available():
+            return
+        self.tray = TrayIcon(self.store, self.settings, self)
+        self.tray.toggleWindow.connect(self.toggle_window)
+        self.tray.connectServer.connect(self._connect_from_tray)
+        self.tray.openSettings.connect(self._settings_from_tray)
+        self.tray.checkStatus.connect(self.tree.refresh_status)
+        self.tray.quitRequested.connect(self.quit_application)
+        self.tray.show()
+
+    def toggle_window(self) -> None:
+        if self.isVisible() and not self.isMinimized():
+            self.hide()
+        else:
+            self.showNormal()
+            self.raise_()
+            self.activateWindow()
+        if self.tray is not None:
+            self.tray.rebuild_menu(self.isVisible())
+
+    def _connect_from_tray(self, server) -> None:
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+        self.connect_server(server)
+
+    def _settings_from_tray(self) -> None:
+        self.showNormal()
+        self.raise_()
+        self.open_settings()
+
+    def start_hidden(self) -> None:
+        """Arranque minimizado: solo queda el icono de la bandeja."""
+        if self.tray is None:
+            self.showMinimized()
+            return
+        self.hide()
+        self.tray.rebuild_menu(False)
+
+    def quit_application(self) -> None:
+        self._quitting = True
+        self.close()
+
     # ------------------------------------------------------- utilidades
     def save_store(self) -> None:
         self.store.save()
         self._refresh_counts()
+        if self.tray is not None:
+            self.tray.rebuild_menu(self.isVisible())
 
     def _refresh_counts(self) -> None:
         total = len(self.store.servers())
@@ -775,6 +827,8 @@ class MainWindow(QMainWindow):
         if dialog.language_changed:
             self._apply_language_change()
             return
+        if dialog.tray_changed:
+            self._apply_tray_change()
         QApplication.instance().setStyleSheet(
             stylesheet(self.settings["theme"], self.settings["accent"])
         )
@@ -785,6 +839,17 @@ class MainWindow(QMainWindow):
         )
         self.tree.rebuild()
         self.tree.start_status_checks()
+
+    def _apply_tray_change(self) -> None:
+        if self.settings["tray_enabled"]:
+            if self.tray is None:
+                self._setup_tray()
+        elif self.tray is not None:
+            self.tray.hide()
+            self.tray.deleteLater()
+            self.tray = None
+            if not self.isVisible():
+                self.showNormal()
 
     def _apply_language_change(self) -> None:
         """El idioma se aplica reconstruyendo la ventana (los textos ya se fijaron)."""
@@ -896,6 +961,23 @@ class MainWindow(QMainWindow):
 
     # ---------------------------------------------------------- cierre
     def closeEvent(self, event) -> None:  # noqa: N802
+        if (
+            not self._quitting
+            and not self.restart_requested
+            and self.tray is not None
+            and self.settings["close_to_tray"]
+        ):
+            event.ignore()
+            self.hide()
+            self.tray.rebuild_menu(False)
+            if not self._tray_hint_shown:
+                self._tray_hint_shown = True
+                self.tray.notify(
+                    APP_NAME,
+                    tr("Sigue abierto en la bandeja del sistema."),
+                )
+            return
+
         active = [s for s in self.sessions if s.state == State.CONNECTED]
         if active:
             answer = QMessageBox.question(
@@ -915,4 +997,7 @@ class MainWindow(QMainWindow):
         self.settings["sidebar_width"] = self.splitter.sizes()[0]
         self.settings.save()
         self.store.save()
+        if self.tray is not None:
+            self.tray.hide()
         event.accept()
+        QApplication.quit()

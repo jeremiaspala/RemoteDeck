@@ -217,7 +217,34 @@ En **Preferencias > Seguridad** elegís cómo se cifran:
 
 ---
 
-## 9. Idioma
+## 9. Bandeja del sistema y arranque automático
+
+RemoteDeck deja un icono en la bandeja del sistema. Con un clic mostrás u
+ocultás la ventana, y con el botón derecho tenés un menú para conectarte a
+cualquier equipo sin abrirla: primero los favoritos y después el árbol
+completo, respetando los grupos.
+
+En **Preferencias > Sistema**:
+
+| Opción | Qué hace |
+|---|---|
+| **Mostrar icono en la bandeja del sistema** | Activa o desactiva el icono. Si lo desactivás, cerrar la ventana cierra la aplicación. |
+| **Al cerrar la ventana, minimizar a la bandeja** | La cruz de la ventana esconde la aplicación en vez de cerrarla. Para salir de verdad: `Ctrl+Q`, *Archivo > Salir* o *Salir* en el menú de la bandeja. |
+| **Iniciar con el sistema** | Escribe `~/.config/autostart/remotedeck.desktop` apuntando al ejecutable actual (el propio AppImage si lo estás usando). |
+| **Iniciar minimizado en la bandeja** | Al arrancar no se abre la ventana: solo queda el icono. Se aplica también al arranque automático. |
+
+También podés forzarlo desde la línea de comandos:
+
+```bash
+./RemoteDeck-x86_64.AppImage --minimized
+```
+
+Si tu escritorio no expone una bandeja del sistema, RemoteDeck lo detecta y
+desactiva la opción (en GNOME hace falta la extensión *AppIndicator Support*).
+
+---
+
+## 10. Idioma
 
 En **Preferencias > Apariencia > Idioma** podés elegir entre **español**
 (el idioma principal), **inglés**, **francés** y **alemán**. El cambio se
@@ -232,7 +259,7 @@ idioma nuevo es copiar uno de esos ficheros y traducirlo.
 
 ---
 
-## 10. Atajos
+## 11. Atajos
 
 | Atajo | Acción |
 |---|---|
@@ -249,11 +276,11 @@ idioma nuevo es copiar uno de esos ficheros y traducirlo.
 | `Ctrl+Shift+W` | Enviar Wake-on-LAN |
 | `F5` | Comprobar el estado de los equipos |
 | `Ctrl+,` | Preferencias |
-| `Ctrl+Q` | Salir |
+| `Ctrl+Q` | Salir (cierra de verdad, aunque esté la bandeja) |
 
 ---
 
-## 11. Problemas frecuentes
+## 12. Problemas frecuentes
 
 **"No se pudo embeber la ventana del visor"**
 El visor tardó más de 25 segundos en abrir su ventana o el servidor rechazó la
@@ -289,7 +316,7 @@ Estás en una sesión sin X11 ni XWayland. Instalá XWayland o iniciá sesión e
 
 ---
 
-## 12. Dónde se guarda todo
+## 13. Dónde se guarda todo
 
 | Ruta | Contenido |
 |---|---|
@@ -298,6 +325,7 @@ Estás en una sesión sin X11 ni XWayland. Instalá XWayland o iniciá sesión e
 | `~/.config/remotedeck/settings.json` | Preferencias de la interfaz |
 | `~/.config/remotedeck/vault.json` | Modo de cifrado |
 | `~/.config/remotedeck/vault.key` | Clave local (si no usás contraseña maestra) |
+| `~/.config/autostart/remotedeck.desktop` | Arranque automático (si lo activaste) |
 | `~/.cache/remotedeck/` | Iconos generados y registros |
 | `$XDG_RUNTIME_DIR/remotedeck/` | Ficheros temporales de contraseñas de VNC |
 
