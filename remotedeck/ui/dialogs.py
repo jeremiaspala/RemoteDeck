@@ -5,6 +5,7 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QCheckBox,
+    QScrollArea,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -28,6 +29,16 @@ from .. import net
 from ..model import RDP, VNC, Credentials, Group, Server
 from . import icons
 from .theme import palette
+
+
+def _scrollable(page: QWidget) -> QScrollArea:
+    """Evita que los formularios largos queden aplastados."""
+    area = QScrollArea()
+    area.setWidgetResizable(True)
+    area.setFrameShape(QScrollArea.Shape.NoFrame)
+    area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    area.setWidget(page)
+    return area
 
 
 def _password_field(placeholder: str = "") -> tuple[QWidget, QLineEdit]:
@@ -59,7 +70,8 @@ class ServerDialog(QDialog):
         self.store = store
         self.settings = settings
         self.setWindowTitle("Nuevo servidor" if is_new else f"Editar · {server.label}")
-        self.setMinimumSize(620, 560)
+        self.setMinimumSize(700, 600)
+        self.resize(760, 720)
         self._build()
         self._load()
 
@@ -74,14 +86,24 @@ class ServerDialog(QDialog):
         self.tabs.setObjectName("Editor")
         root.addWidget(self.tabs, 1)
 
-        self.tabs.addTab(self._tab_general(), icons.icon("server", c["text_dim"]), "General")
-        self.tabs.addTab(self._tab_credentials(), icons.icon("lock", c["text_dim"]), "Credenciales")
-        self.tabs.addTab(self._tab_display(), icons.icon("fullscreen", c["text_dim"]), "Pantalla")
-        self.rdp_tab = self._tab_rdp()
+        self.tabs.addTab(
+            _scrollable(self._tab_general()), icons.icon("server", c["text_dim"]), "General"
+        )
+        self.tabs.addTab(
+            _scrollable(self._tab_credentials()), icons.icon("lock", c["text_dim"]),
+            "Credenciales",
+        )
+        self.tabs.addTab(
+            _scrollable(self._tab_display()), icons.icon("fullscreen", c["text_dim"]),
+            "Pantalla",
+        )
+        self.rdp_tab = _scrollable(self._tab_rdp())
         self.tabs.addTab(self.rdp_tab, icons.icon("rdp", c["text_dim"]), "RDP")
-        self.vnc_tab = self._tab_vnc()
+        self.vnc_tab = _scrollable(self._tab_vnc())
         self.tabs.addTab(self.vnc_tab, icons.icon("vnc", c["text_dim"]), "VNC")
-        self.tabs.addTab(self._tab_wol(), icons.icon("power", c["text_dim"]), "Wake-on-LAN")
+        self.tabs.addTab(
+            _scrollable(self._tab_wol()), icons.icon("power", c["text_dim"]), "Wake-on-LAN"
+        )
         self.tabs.addTab(self._tab_notes(), icons.icon("info", c["text_dim"]), "Notas")
 
         buttons = QDialogButtonBox(
@@ -98,7 +120,9 @@ class ServerDialog(QDialog):
     def _tab_general(self) -> QWidget:
         page = QWidget()
         form = QFormLayout(page)
-        form.setSpacing(10)
+        form.setContentsMargins(14, 16, 14, 16)
+        form.setSpacing(12)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.name_edit = QLineEdit()
         self.name_edit.setPlaceholderText("Nombre visible")
         self.host_edit = QLineEdit()
@@ -140,7 +164,8 @@ class ServerDialog(QDialog):
     def _tab_credentials(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setSpacing(10)
+        layout.setContentsMargins(14, 16, 14, 16)
+        layout.setSpacing(12)
         self.inherit_check = QCheckBox("Heredar credenciales del grupo")
         self.inherit_check.toggled.connect(self._inherit_changed)
         layout.addWidget(self.inherit_check)
@@ -167,7 +192,8 @@ class ServerDialog(QDialog):
     def _tab_display(self) -> QWidget:
         page = QWidget()
         form = QFormLayout(page)
-        form.setSpacing(10)
+        form.setContentsMargins(14, 16, 14, 16)
+        form.setSpacing(12)
         self.mode_combo = QComboBox()
         self.mode_combo.addItem("Ajustar al tamano de la pestana", "fit")
         self.mode_combo.addItem("Resolucion fija", "fixed")
@@ -196,10 +222,13 @@ class ServerDialog(QDialog):
     def _tab_rdp(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setSpacing(10)
+        layout.setContentsMargins(14, 16, 14, 16)
+        layout.setSpacing(14)
 
         general = QGroupBox("Sesion")
         form = QFormLayout(general)
+        form.setSpacing(11)
+        form.setContentsMargins(14, 8, 14, 12)
         self.rdp_security = QComboBox()
         for label, value in (
             ("Automatica", "auto"), ("NLA", "nla"), ("TLS", "tls"), ("RDP clasico", "rdp")
@@ -229,9 +258,12 @@ class ServerDialog(QDialog):
 
         options = QGroupBox("Opciones")
         grid = QGridLayout(options)
+        grid.setHorizontalSpacing(24)
+        grid.setVerticalSpacing(9)
+        grid.setContentsMargins(14, 8, 14, 12)
         self.rdp_console = QCheckBox("Sesion de consola/admin")
         self.rdp_clipboard = QCheckBox("Portapapeles compartido")
-        self.rdp_gfx = QCheckBox("Aceleracion GFX (H.264)")
+        self.rdp_gfx = QCheckBox("Aceleracion GFX (RemoteFX)")
         self.rdp_dynres = QCheckBox("Resolucion dinamica")
         self.rdp_smart = QCheckBox("Escalar al tamano de la ventana")
         self.rdp_multimon = QCheckBox("Multi-monitor")
@@ -252,6 +284,8 @@ class ServerDialog(QDialog):
 
         extra = QGroupBox("Audio, carpeta y pasarela")
         form2 = QFormLayout(extra)
+        form2.setSpacing(11)
+        form2.setContentsMargins(14, 8, 14, 12)
         self.rdp_sound = QComboBox()
         for label, value in (("Sin audio", "off"), ("Reproducir aqui", "local"),
                              ("Reproducir en el servidor", "remote")):
@@ -287,7 +321,10 @@ class ServerDialog(QDialog):
     def _tab_vnc(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(14, 16, 14, 16)
+        layout.setSpacing(14)
         form = QFormLayout()
+        form.setSpacing(11)
         self.vnc_encoding = QComboBox()
         for enc in ("Tight", "ZRLE", "Hextile", "Raw"):
             self.vnc_encoding.addItem(enc, enc)
@@ -308,6 +345,9 @@ class ServerDialog(QDialog):
 
         options = QGroupBox("Opciones")
         grid = QGridLayout(options)
+        grid.setHorizontalSpacing(24)
+        grid.setVerticalSpacing(9)
+        grid.setContentsMargins(14, 8, 14, 12)
         self.vnc_viewonly = QCheckBox("Solo lectura")
         self.vnc_shared = QCheckBox("Sesion compartida")
         self.vnc_color = QCheckBox("Color completo")
@@ -323,7 +363,10 @@ class ServerDialog(QDialog):
     def _tab_wol(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(14, 16, 14, 16)
+        layout.setSpacing(14)
         form = QFormLayout()
+        form.setSpacing(12)
         mac_box = QWidget()
         mac_layout = QHBoxLayout(mac_box)
         mac_layout.setContentsMargins(0, 0, 0, 0)
@@ -362,6 +405,7 @@ class ServerDialog(QDialog):
     def _tab_notes(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(14, 16, 14, 16)
         self.notes_edit = QPlainTextEdit()
         self.notes_edit.setPlaceholderText("Notas, inventario, contactos...")
         layout.addWidget(self.notes_edit)

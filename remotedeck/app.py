@@ -10,14 +10,18 @@ def _force_x11() -> None:
     """El embebido de ventanas necesita XCB (bajo Wayland se usa XWayland)."""
     if os.environ.get("REMOTEDECK_PLATFORM"):
         os.environ["QT_QPA_PLATFORM"] = os.environ["REMOTEDECK_PLATFORM"]
-        return
-    if os.environ.get("DISPLAY"):
+    elif os.environ.get("DISPLAY"):
         os.environ["QT_QPA_PLATFORM"] = "xcb"
+    # Los dialogos nativos de KDE/GNOME y el portal xdg anaden latencia (y a
+    # veces bloqueos de varios segundos) al abrir menus y ventanas de opciones.
+    os.environ.setdefault("QT_NO_XDG_DESKTOP_PORTAL", "1")
+    os.environ.setdefault("QT_QPA_PLATFORMTHEME", "")
 
 
 def main(argv: list[str] | None = None) -> int:
     _force_x11()
 
+    from PyQt6.QtCore import Qt
     from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
 
     from . import APP_NAME, importers
@@ -32,7 +36,9 @@ def main(argv: list[str] | None = None) -> int:
     ensure_dirs()
     settings = Settings()
 
+    QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
     app = QApplication(argv if argv is not None else sys.argv)
+    _disable_animations(app)
     app.setApplicationName(APP_NAME)
     app.setApplicationDisplayName(APP_NAME)
     app.setDesktopFileName("remotedeck")
@@ -67,6 +73,21 @@ def main(argv: list[str] | None = None) -> int:
         _offer_first_import(window, store, importers)
 
     return app.exec()
+
+
+def _disable_animations(app) -> None:
+    """Sin animaciones de menu: en XWayland se perciben como tirones."""
+    from PyQt6.QtCore import Qt
+
+    for effect in (
+        Qt.UIEffect.UI_AnimateMenu,
+        Qt.UIEffect.UI_FadeMenu,
+        Qt.UIEffect.UI_AnimateCombo,
+        Qt.UIEffect.UI_AnimateTooltip,
+        Qt.UIEffect.UI_FadeTooltip,
+        Qt.UIEffect.UI_AnimateToolBox,
+    ):
+        app.setEffectEnabled(effect, False)
 
 
 def _offer_first_import(window, store, importers) -> None:

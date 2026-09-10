@@ -103,7 +103,9 @@ def build_rdp(
     args.append(f"/bpp:{o.color_depth}")
     args.append(f"/network:{o.network}")
     if o.gfx:
-        args.append("/gfx:AVC444")
+        # AVC420/AVC444 solo existen si FreeRDP se compilo con H.264; RFX y
+        # progressive estan siempre disponibles.
+        args.append("/gfx:RFX:on,progressive:on,small-cache:on")
     if o.security != "auto":
         args.append(f"/sec:{o.security}")
     if o.ignore_cert:

@@ -47,8 +47,8 @@ log "site-packages: $SITE"
 
 # ---------------------------------------------------------------- PyQt6
 log "instalando PyQt6"
-"$PYBIN" -m pip install --no-cache-dir --upgrade pip >/dev/null
-"$PYBIN" -m pip install --no-cache-dir "PyQt6>=6.6" >/dev/null
+"$PYBIN" -m pip install --upgrade pip >/dev/null
+"$PYBIN" -m pip install "PyQt6>=6.6" >/dev/null
 
 # adelgaza Qt: fuera lo que no usamos
 QT_LIB="$SITE/PyQt6/Qt6/lib"
