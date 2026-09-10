@@ -267,6 +267,27 @@ QRadioButton::indicator:checked {{
 QCheckBox::indicator:disabled, QRadioButton::indicator:disabled {{
     border-color: {c['border']}; background: {c['bg_alt']};
 }}
+/* Las casillas dentro de listas y arboles no heredan el estilo de QCheckBox:
+   sin esto Qt las pinta con su estilo nativo (un cuadro claro). */
+QTreeView::indicator, QTreeWidget::indicator,
+QListView::indicator, QTableView::indicator {{
+    width: 17px; height: 17px;
+    border: 1px solid {c['text_faint']};
+    border-radius: 5px;
+    background: {c['panel']};
+    margin-right: 4px;
+}}
+QTreeView::indicator:hover, QTreeWidget::indicator:hover {{
+    border-color: {c['accent']};
+}}
+QTreeView::indicator:checked, QTreeWidget::indicator:checked,
+QListView::indicator:checked, QTableView::indicator:checked {{
+    background: {c['accent']}; border-color: {c['accent']};
+    image: url({check});
+}}
+QTreeView::indicator:indeterminate, QTreeWidget::indicator:indeterminate {{
+    background: {c['accent_soft']}; border-color: {c['accent']};
+}}
 QSlider::groove:horizontal {{ height: 4px; background: {c['border']}; border-radius: 2px; }}
 QSlider::handle:horizontal {{
     background: {c['accent']}; width: 14px; height: 14px;

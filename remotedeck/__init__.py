@@ -1,5 +1,5 @@
 """RemoteDeck - gestor de conexiones RDP/VNC con sesiones embebidas."""
 
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 APP_NAME = "RemoteDeck"
 APP_ID = "remotedeck"
