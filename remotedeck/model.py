@@ -51,7 +51,9 @@ class RdpOptions:
     microphone: bool = False
     redirect_drives: bool = False
     home_drive: bool = False
-    shared_folder: str = ""
+    share_default: bool = True  # publicar la carpeta de intercambio global
+    shared_folder: str = ""  # carpeta propia del equipo (además de la global)
+    share_label: str = ""
     printers: bool = False
     smartcard: bool = False
     multimon: bool = False

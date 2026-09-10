@@ -18,16 +18,17 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "accent": "#4c8dff",
     "connect_on_double_click": True,
     "confirm_close_session": True,
-    "reconnect_on_drop": False,
     "status_check": True,
     "status_interval": 60,
     "tab_position": "top",
     "sidebar_width": 300,
     "window_geometry": "",
     "window_state": "",
-    "show_thumbnails": False,
     "rdp_binary": "",
     "vnc_binary": "",
+    "share_enabled": True,
+    "share_path": "",  # vacío -> ~/RemoteDeck
+    "share_label": "RemoteDeck",
     "last_import_dir": "",
     "fullscreen_hotkey": "F11",
     "first_run_done": False,
@@ -75,9 +76,11 @@ class Store:
     def __init__(self) -> None:
         self.root = Group(name="Conexiones")
         self.dirty = False
+        self._index: dict[str, Any] | None = None
 
     # -- E/S ------------------------------------------------------------
     def load(self) -> None:
+        self.invalidate()
         if not CONNECTIONS_FILE.exists():
             self.root = Group(name="Conexiones")
             return
@@ -99,13 +102,26 @@ class Store:
         self.dirty = False
 
     # -- consultas ------------------------------------------------------
+    def invalidate(self) -> None:
+        self._index = None
+
+    def index(self) -> dict[str, Any]:
+        """id -> nodo. Evita recorrer el arbol en cada busqueda."""
+        if self._index is None:
+            self._index = {self.root.id: self.root}
+            for node in self.root.walk():
+                self._index[node.id] = node
+        return self._index
+
     def find(self, node_id: str) -> Optional[Any]:
-        if node_id == self.root.id:
-            return self.root
-        for node in self.root.walk():
-            if node.id == node_id:
-                return node
-        return None
+        if not node_id:
+            return None
+        node = self.index().get(node_id)
+        if node is None:
+            # el arbol pudo cambiar sin pasar por el store (importadores)
+            self.invalidate()
+            node = self.index().get(node_id)
+        return node
 
     def servers(self) -> list[Server]:
         return list(self.root.servers())
@@ -129,12 +145,14 @@ class Store:
     # -- mutaciones -----------------------------------------------------
     def add(self, node: Any, parent: Group | None = None, index: int | None = None):
         (parent or self.root).add(node, index)
+        self.invalidate()
         self.dirty = True
         return node
 
     def remove(self, node: Any) -> None:
         parent = node.parent or self.root
         parent.remove(node)
+        self.invalidate()
         self.dirty = True
 
     def move(self, node: Any, new_parent: Group, index: int | None = None) -> None:
@@ -143,6 +161,7 @@ class Store:
         old = node.parent or self.root
         old.remove(node)
         new_parent.add(node, index)
+        self.invalidate()
         self.dirty = True
 
     @staticmethod

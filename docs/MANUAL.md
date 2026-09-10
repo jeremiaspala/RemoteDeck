@@ -121,7 +121,7 @@ Podés arrastrar equipos y grupos dentro del árbol para reordenarlos.
 | **General** | Nombre, host, puerto, protocolo, grupo, etiquetas, favorito y conexión automática al arrancar |
 | **Credenciales** | Heredar del grupo o usar propias (usuario, dominio, contraseña) |
 | **Pantalla** | Ajustar a la pestaña / resolución fija / pantalla completa, y si la sesión va embebida o en ventana aparte |
-| **RDP** | Seguridad, color, red, escala, teclado, portapapeles, audio, micrófono, unidades, impresoras, tarjetas, multi-monitor, RD Gateway y argumentos extra |
+| **RDP** | Seguridad, color, red, escala, teclado, portapapeles, audio, micrófono, carpeta de intercambio, unidades, impresoras, tarjetas, multi-monitor, RD Gateway y argumentos extra |
 | **VNC** | Codificación, calidad, compresión, solo lectura, sesión compartida, redimensionado remoto |
 | **Wake-on-LAN** | MAC, difusión, puerto, espera y encendido automático |
 | **Notas** | Texto libre: inventario, contactos, qué hace ese equipo |
@@ -156,7 +156,60 @@ Podés arrastrar equipos y grupos dentro del árbol para reordenarlos.
 
 ---
 
-## 6. Wake-on-LAN
+## 6. Carpeta de intercambio
+
+Al conectarte por RDP, RemoteDeck publica una carpeta local en el equipo remoto
+como una unidad de red. Es la forma más directa de mover ficheros en las dos
+direcciones sin montar SMB ni levantar un FTP.
+
+Por omisión comparte `~/RemoteDeck` (se crea sola la primera vez) con el nombre
+`RemoteDeck`. En el servidor la ves como:
+
+- **Windows**: en *Este equipo*, junto a los discos, y también en
+  `\\tsclient\RemoteDeck`.
+- **Windows Server con Escritorio remoto**: igual, siempre que la directiva de
+  grupo no tenga bloqueada la redirección de unidades.
+
+`Sesión` → `Abrir carpeta de intercambio` (`Ctrl+Shift+O`) abre esa carpeta en
+tu gestor de ficheros; también está en el menú del icono de la bandeja. Si hay
+una sesión activa, abre la carpeta que ve esa sesión.
+
+### Configurarla
+
+En **Preferencias** → *Carpeta de intercambio*:
+
+| Opción | Qué hace |
+|---|---|
+| **Compartir una carpeta local en las sesiones RDP** | Activa o desactiva la carpeta global para todas las conexiones |
+| **Carpeta** | Ruta local. Vacío significa `~/RemoteDeck` |
+| **Nombre de la unidad** | Cómo se llama la unidad en el servidor |
+
+Y por equipo, en su pestaña **RDP** → *Carpeta de intercambio*:
+
+| Opción | Qué hace |
+|---|---|
+| **Publicar la carpeta de intercambio de RemoteDeck** | Desmarcalo en los equipos donde no quieras compartir nada |
+| **Carpeta extra** | Una segunda carpeta, solo para ese equipo (por ejemplo, la de instaladores) |
+| **Nombre** | Nombre de esa unidad en el servidor |
+
+Las carpetas que se publican quedan anotadas en el registro de la sesión
+(*Ver registro*), con la ruta local y el nombre remoto.
+
+### Un par de detalles
+
+- La redirección va por el canal `rdpdr` de RDP: no abre ningún puerto ni
+  necesita nada instalado en el servidor.
+- Si la carpeta no existe, RemoteDeck la crea. Si la ruta configurada no se
+  puede crear, la sesión arranca igual, sin unidad.
+- Con *Redirigir unidades locales* (en las opciones de RDP) se comparten además
+  todos los puntos de montaje del sistema. La carpeta de intercambio es lo
+  contrario: una sola carpeta, controlada.
+- **VNC no tiene transferencia de ficheros**: el visor de TigerVNC no
+  implementa el canal, así que esta opción solo aplica a RDP.
+
+---
+
+## 7. Wake-on-LAN
 
 En la pestaña **Wake-on-LAN** de cada servidor:
 
@@ -176,7 +229,7 @@ varios equipos (o un grupo entero) y despertarlos todos juntos.
 
 ---
 
-## 7. Importar conexiones
+## 8. Importar conexiones
 
 **Archivo > Importar de Remmina** lee los perfiles de `~/.local/share/remmina`,
 respeta los grupos y recupera las contraseñas guardadas en el llavero
@@ -200,7 +253,7 @@ otra máquina, vas a tener que volver a cargarlas.
 
 ---
 
-## 8. Seguridad de las credenciales
+## 9. Seguridad de las credenciales
 
 Las contraseñas nunca se guardan en texto plano ni aparecen en la lista de
 procesos (a FreeRDP se le pasan por `stdin` y a TigerVNC por un fichero
@@ -217,7 +270,7 @@ En **Preferencias > Seguridad** elegís cómo se cifran:
 
 ---
 
-## 9. Bandeja del sistema y arranque automático
+## 10. Bandeja del sistema y arranque automático
 
 RemoteDeck deja un icono en la bandeja del sistema. Con un clic mostrás u
 ocultás la ventana, y con el botón derecho tenés un menú para conectarte a
@@ -244,7 +297,7 @@ desactiva la opción (en GNOME hace falta la extensión *AppIndicator Support*).
 
 ---
 
-## 10. Idioma
+## 11. Idioma
 
 En **Preferencias > Apariencia > Idioma** podés elegir entre **español**
 (el idioma principal), **inglés**, **francés** y **alemán**. El cambio se
@@ -259,7 +312,7 @@ idioma nuevo es copiar uno de esos ficheros y traducirlo.
 
 ---
 
-## 11. Atajos
+## 12. Atajos
 
 | Atajo | Acción |
 |---|---|
@@ -274,13 +327,14 @@ idioma nuevo es copiar uno de esos ficheros y traducirlo.
 | `Ctrl+D` | Duplicar servidor |
 | `Supr` | Eliminar |
 | `Ctrl+Shift+W` | Enviar Wake-on-LAN |
+| `Ctrl+Shift+O` | Abrir la carpeta de intercambio |
 | `F5` | Comprobar el estado de los equipos |
 | `Ctrl+,` | Preferencias |
 | `Ctrl+Q` | Salir (cierra de verdad, aunque esté la bandeja) |
 
 ---
 
-## 12. Problemas frecuentes
+## 13. Problemas frecuentes
 
 **"No se pudo embeber la ventana del visor"**
 El visor tardó más de 25 segundos en abrir su ventana o el servidor rechazó la
@@ -316,7 +370,7 @@ Estás en una sesión sin X11 ni XWayland. Instalá XWayland o iniciá sesión e
 
 ---
 
-## 13. Dónde se guarda todo
+## 14. Dónde se guarda todo
 
 | Ruta | Contenido |
 |---|---|
@@ -326,6 +380,7 @@ Estás en una sesión sin X11 ni XWayland. Instalá XWayland o iniciá sesión e
 | `~/.config/remotedeck/vault.json` | Modo de cifrado |
 | `~/.config/remotedeck/vault.key` | Clave local (si no usás contraseña maestra) |
 | `~/.config/autostart/remotedeck.desktop` | Arranque automático (si lo activaste) |
+| `~/RemoteDeck/` | Carpeta de intercambio por omisión (se comparte en las sesiones RDP) |
 | `~/.cache/remotedeck/` | Iconos generados y registros |
 | `$XDG_RUNTIME_DIR/remotedeck/` | Ficheros temporales de contraseñas de VNC |
 

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import errno
 import re
+import selectors
 import socket
 import subprocess
 import time
+from typing import Callable, Sequence
 
 MAC_RE = re.compile(r"^([0-9A-Fa-f]{2}[:\-]?){5}[0-9A-Fa-f]{2}$")
 
@@ -51,6 +54,83 @@ def port_open(host: str, port: int, timeout: float = 1.5) -> bool:
             return True
     except OSError:
         return False
+
+
+def scan_ports(
+    targets: Sequence[tuple[str, str, int]],
+    on_result: Callable[[str, bool], None],
+    timeout: float = 1.5,
+    batch: int = 128,
+    should_stop: Callable[[], bool] | None = None,
+) -> None:
+    """Comprueba muchos puertos a la vez con conexiones no bloqueantes.
+
+    Un `connect` por socket y un solo `select` para todos: comprobar cien
+    equipos cuesta lo mismo que comprobar uno, y sin un hilo por equipo.
+    `targets` son tuplas (clave, host, puerto) y el resultado se entrega por
+    `on_result(clave, abierto)`.
+    """
+    for start in range(0, len(targets), max(1, batch)):
+        if should_stop is not None and should_stop():
+            return
+        chunk = targets[start : start + max(1, batch)]
+        pending: dict[socket.socket, str] = {}
+        selector = selectors.DefaultSelector()
+        try:
+            for key, host, port in chunk:
+                if not host:
+                    continue
+                try:
+                    family, _type, proto, _canon, addr = socket.getaddrinfo(
+                        host, port, type=socket.SOCK_STREAM
+                    )[0]
+                    sock = socket.socket(family, socket.SOCK_STREAM, proto)
+                except (OSError, IndexError):
+                    on_result(key, False)
+                    continue
+                sock.setblocking(False)
+                try:
+                    err = sock.connect_ex(addr)
+                except OSError:
+                    err = errno.EHOSTUNREACH
+                if err in (0, errno.EISCONN):
+                    on_result(key, True)
+                    sock.close()
+                    continue
+                if err not in (errno.EINPROGRESS, errno.EALREADY, errno.EWOULDBLOCK):
+                    on_result(key, False)
+                    sock.close()
+                    continue
+                pending[sock] = key
+                selector.register(sock, selectors.EVENT_WRITE)
+
+            deadline = time.monotonic() + max(0.2, timeout)
+            while pending:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                if should_stop is not None and should_stop():
+                    return
+                for event, _mask in selector.select(min(remaining, 0.25)):
+                    sock = event.fileobj
+                    key = pending.pop(sock, None)
+                    selector.unregister(sock)
+                    code = sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
+                    sock.close()
+                    if key is not None:
+                        on_result(key, code == 0)
+            timed_out, pending = pending, {}
+            for sock, key in timed_out.items():
+                selector.unregister(sock)
+                sock.close()
+                on_result(key, False)
+        finally:
+            selector.close()
+            for sock in pending:
+                try:
+                    sock.close()
+                except OSError:
+                    pass
 
 
 def wait_for_port(host: str, port: int, seconds: int, should_stop=None) -> bool:

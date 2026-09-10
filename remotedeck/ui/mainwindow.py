@@ -6,8 +6,8 @@ from ..i18n import tr
 
 from pathlib import Path
 
-from PyQt6.QtCore import QByteArray, QSize, Qt, QTimer
-from PyQt6.QtGui import QAction, QKeySequence
+from PyQt6.QtCore import QByteArray, QSize, Qt, QTimer, QUrl
+from PyQt6.QtGui import QAction, QDesktopServices, QKeySequence
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -29,8 +29,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from .. import APP_NAME, __version__, importers, net
+from .. import APP_NAME, __version__, backends, importers, net
 from ..model import RDP, VNC, Group, Server
+from ..paths import ensure_share_dir, share_dir
 from ..store import Settings, Store
 from ..vault import vault
 from . import icons
@@ -306,6 +307,12 @@ class MainWindow(QMainWindow):
         self.act_duplicate = action("copy", tr("Duplicar"), self.duplicate_selected, "Ctrl+D")
         self.act_delete = action("delete", tr("Eliminar"), self.delete_selected, "Del")
         self.act_wake = action("power", tr("Wake-on-LAN"), self.wake_selected, "Ctrl+Shift+W")
+        self.act_open_share = action(
+            "group", tr("Abrir carpeta de intercambio"), self.open_share_folder,
+            "Ctrl+Shift+O",
+            tr("Abre en el gestor de ficheros la carpeta que se publica como "
+            "unidad en las sesiones RDP."),
+        )
         self.act_fullscreen = action("fullscreen", tr("Pantalla completa"), self.toggle_fullscreen, "F11")
         self.act_reconnect = action("refresh", tr("Reconectar"), self.reconnect_current, "Ctrl+R")
         self.act_settings = action("settings", tr("Preferencias"), self.open_settings, "Ctrl+,")
@@ -360,6 +367,8 @@ class MainWindow(QMainWindow):
         session_menu.addSeparator()
         session_menu.addAction(self.act_fullscreen)
         session_menu.addAction(self.act_wake)
+        session_menu.addSeparator()
+        session_menu.addAction(self.act_open_share)
 
         edit_menu = menubar.addMenu(tr("&Editar"))
         edit_menu.addAction(self.act_edit)
@@ -379,6 +388,7 @@ class MainWindow(QMainWindow):
         self.tray.toggleWindow.connect(self.toggle_window)
         self.tray.connectServer.connect(self._connect_from_tray)
         self.tray.openSettings.connect(self._settings_from_tray)
+        self.tray.openShare.connect(self.open_share_folder)
         self.tray.checkStatus.connect(self.tree.refresh_status)
         self.tray.quitRequested.connect(self.quit_application)
         self.tray.show()
@@ -710,6 +720,29 @@ class MainWindow(QMainWindow):
         for server in self.store.servers():
             if server.connect_on_startup:
                 self.connect_server(server)
+
+    # --------------------------------------------------- intercambio
+    def open_share_folder(self) -> None:
+        """Abre la carpeta que ve la sesión activa, o la global si no hay."""
+        session = self.current_session()
+        node = self.tree.current_node()
+        server = session.server if session else (node if isinstance(node, Server) else None)
+        path = None
+        if server is not None and server.protocol == RDP:
+            shares = backends.resolve_shares(server, self.settings)
+            if shares:
+                path = Path(shares[0][1])
+        if path is None:
+            path = ensure_share_dir(self.settings["share_path"])
+        if path is None:
+            QMessageBox.warning(
+                self, tr("Carpeta de intercambio"),
+                tr("No se pudo crear la carpeta {path}.").format(
+                    path=share_dir(self.settings["share_path"])
+                ),
+            )
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
     # ------------------------------------------------------------- WoL
     def wake_selected(self) -> None:

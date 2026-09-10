@@ -29,6 +29,7 @@ from PyQt6.QtWidgets import (
 
 from .. import net
 from ..model import RDP, VNC, Credentials, Group, Server
+from ..paths import share_dir
 from . import icons
 from .brand import FUNDAMENTA_URL, fundamenta_pixmap
 from .tray import TrayIcon, autostart_enabled, set_autostart
@@ -411,14 +412,26 @@ class ServerDialog(QDialog):
             grid.addWidget(widget, index // 2, index % 2)
         layout.addWidget(options)
 
-        extra = QGroupBox(tr("Audio, carpeta y pasarela"))
-        form2 = QFormLayout(extra)
-        form2.setSpacing(11)
-        form2.setContentsMargins(14, 8, 14, 12)
-        self.rdp_sound = QComboBox()
-        for label, value in ((tr("Sin audio"), "off"), (tr("Reproducir aquí"), "local"),
-                             (tr("Reproducir en el servidor"), "remote")):
-            self.rdp_sound.addItem(label, value)
+        shares = QGroupBox(tr("Carpeta de intercambio"))
+        share_form = QFormLayout(shares)
+        share_form.setSpacing(11)
+        share_form.setContentsMargins(14, 8, 14, 12)
+        self.rdp_share_default = QCheckBox(
+            tr("Publicar la carpeta de intercambio de RemoteDeck")
+        )
+        self.rdp_share_default.setToolTip(
+            tr("La carpeta se monta en el equipo remoto como una unidad de red. "
+               "En Windows aparece en «Este equipo» y en \\\\tsclient.")
+        )
+        global_hint = QLabel(
+            tr("Carpeta global: {path}").format(
+                path=share_dir(self.settings["share_path"])
+            )
+            if self.settings["share_enabled"]
+            else tr("La carpeta global está desactivada en Preferencias.")
+        )
+        global_hint.setObjectName("SessionMsg")
+        global_hint.setWordWrap(True)
         share_box = QWidget()
         share_layout = QHBoxLayout(share_box)
         share_layout.setContentsMargins(0, 0, 0, 0)
@@ -429,6 +442,22 @@ class ServerDialog(QDialog):
         browse.clicked.connect(self._pick_folder)
         share_layout.addWidget(self.rdp_share, 1)
         share_layout.addWidget(browse)
+        self.rdp_share_label = QLineEdit()
+        self.rdp_share_label.setPlaceholderText(tr("Nombre de la unidad en el servidor"))
+        share_form.addRow("", self.rdp_share_default)
+        share_form.addRow("", global_hint)
+        share_form.addRow(tr("Carpeta extra"), share_box)
+        share_form.addRow(tr("Nombre"), self.rdp_share_label)
+        layout.addWidget(shares)
+
+        extra = QGroupBox(tr("Audio y pasarela"))
+        form2 = QFormLayout(extra)
+        form2.setSpacing(11)
+        form2.setContentsMargins(14, 8, 14, 12)
+        self.rdp_sound = QComboBox()
+        for label, value in ((tr("Sin audio"), "off"), (tr("Reproducir aquí"), "local"),
+                             (tr("Reproducir en el servidor"), "remote")):
+            self.rdp_sound.addItem(label, value)
         self.rdp_gateway = QLineEdit()
         self.rdp_gateway.setPlaceholderText("gateway.dominio.com:443")
         self.rdp_gw_user = QLineEdit()
@@ -437,7 +466,6 @@ class ServerDialog(QDialog):
         self.rdp_extra = QLineEdit()
         self.rdp_extra.setPlaceholderText(tr("Argumentos adicionales de xfreerdp"))
         form2.addRow(tr("Audio"), self.rdp_sound)
-        form2.addRow(tr("Carpeta"), share_box)
         form2.addRow(tr("Gateway"), self.rdp_gateway)
         form2.addRow(tr("Usuario gateway"), self.rdp_gw_user)
         form2.addRow(tr("Dominio gateway"), self.rdp_gw_domain)
@@ -587,7 +615,9 @@ class ServerDialog(QDialog):
         self.rdp_mic.setChecked(o.microphone)
         self.rdp_cert.setChecked(o.ignore_cert)
         self.rdp_sound.setCurrentIndex(max(0, self.rdp_sound.findData(o.sound)))
+        self.rdp_share_default.setChecked(o.share_default)
         self.rdp_share.setText(o.shared_folder)
+        self.rdp_share_label.setText(o.share_label)
         self.rdp_gateway.setText(o.gateway)
         self.rdp_gw_user.setText(o.gateway_username)
         self.rdp_gw_domain.setText(o.gateway_domain)
@@ -724,7 +754,9 @@ class ServerDialog(QDialog):
         o.microphone = self.rdp_mic.isChecked()
         o.ignore_cert = self.rdp_cert.isChecked()
         o.sound = self.rdp_sound.currentData()
+        o.share_default = self.rdp_share_default.isChecked()
         o.shared_folder = self.rdp_share.text().strip()
+        o.share_label = self.rdp_share_label.text().strip()
         o.gateway = self.rdp_gateway.text().strip()
         o.gateway_username = self.rdp_gw_user.text().strip()
         o.gateway_domain = self.rdp_gw_domain.text().strip()
@@ -1022,6 +1054,44 @@ class SettingsDialog(QDialog):
             sys_layout.addWidget(hint)
         layout.addWidget(system)
 
+        share = QGroupBox(tr("Carpeta de intercambio"))
+        share_layout = QVBoxLayout(share)
+        share_layout.setSpacing(9)
+        share_layout.setContentsMargins(14, 8, 14, 12)
+        self.share_check = QCheckBox(
+            tr("Compartir una carpeta local en las sesiones RDP")
+        )
+        self.share_check.setChecked(bool(settings["share_enabled"]))
+        share_hint = QLabel(
+            tr("Se monta en el equipo remoto como unidad de red y sirve para "
+               "copiar ficheros en las dos direcciones sin SMB ni FTP. Cada "
+               "equipo puede desactivarla en su pestaña RDP.")
+        )
+        share_hint.setObjectName("SessionMsg")
+        share_hint.setWordWrap(True)
+        share_layout.addWidget(self.share_check)
+        share_layout.addWidget(share_hint)
+        share_form = QFormLayout()
+        share_form.setSpacing(11)
+        path_box = QWidget()
+        path_layout = QHBoxLayout(path_box)
+        path_layout.setContentsMargins(0, 0, 0, 0)
+        self.share_path = QLineEdit(settings["share_path"])
+        self.share_path.setPlaceholderText(str(share_dir()))
+        share_browse = QPushButton("...")
+        share_browse.setFixedWidth(40)
+        share_browse.clicked.connect(self._pick_share)
+        path_layout.addWidget(self.share_path, 1)
+        path_layout.addWidget(share_browse)
+        self.share_label_edit = QLineEdit(settings["share_label"])
+        self.share_label_edit.setPlaceholderText("RemoteDeck")
+        share_form.addRow(tr("Carpeta"), path_box)
+        share_form.addRow(tr("Nombre de la unidad"), self.share_label_edit)
+        share_layout.addLayout(share_form)
+        self.share_check.toggled.connect(self._share_toggled)
+        self._share_toggled(self.share_check.isChecked())
+        layout.addWidget(share)
+
         binaries = QGroupBox(tr("Visores"))
         form3 = QFormLayout(binaries)
         self.rdp_bin = QLineEdit(settings["rdp_binary"])
@@ -1069,6 +1139,18 @@ class SettingsDialog(QDialog):
         self.close_tray_check.setEnabled(enabled)
         self.minimized_check.setEnabled(enabled)
 
+    def _share_toggled(self, enabled: bool) -> None:
+        self.share_path.setEnabled(enabled)
+        self.share_label_edit.setEnabled(enabled)
+
+    def _pick_share(self) -> None:
+        start = str(share_dir(self.share_path.text()))
+        folder = QFileDialog.getExistingDirectory(
+            self, tr("Carpeta de intercambio"), start
+        )
+        if folder:
+            self.share_path.setText(folder)
+
     @property
     def language_changed(self) -> bool:
         return self._old_language != self.lang_combo.currentData()
@@ -1089,6 +1171,9 @@ class SettingsDialog(QDialog):
         self.settings["status_interval"] = self.interval_spin.value()
         self.settings["rdp_binary"] = self.rdp_bin.text().strip()
         self.settings["vnc_binary"] = self.vnc_bin.text().strip()
+        self.settings["share_enabled"] = self.share_check.isChecked()
+        self.settings["share_path"] = self.share_path.text().strip()
+        self.settings["share_label"] = self.share_label_edit.text().strip() or "RemoteDeck"
         self.settings["tray_enabled"] = self.tray_check.isChecked()
         self.settings["close_to_tray"] = self.close_tray_check.isChecked()
         self.settings["start_minimized"] = (

@@ -52,6 +52,24 @@ que empaquetar: `libX11` ya está en cualquier sistema con X11. Se instala un
 manejador de errores X que ignora los fallos, porque las ventanas ajenas
 pueden desaparecer entre que se consultan y se tocan.
 
+### La carpeta de intercambio: `/drive:` y no un servidor SMB
+
+La primera idea para intercambiar ficheros fue montar un Samba local y
+apuntar el servidor ahí. Mala idea: abre un puerto, hay que autenticar, y en
+una red con el 445 filtrado no funciona. RDP ya trae el canal `rdpdr`, así que
+alcanza con `/drive:<nombre>,<ruta>`: el servidor ve la carpeta como una
+unidad de red (`\\tsclient\<nombre>`), no hace falta instalar nada del otro
+lado y el tráfico va cifrado por la misma sesión.
+
+Se resolvió como carpeta **global** (`~/RemoteDeck`, en Preferencias) porque
+lo normal es querer la misma carpeta en todos los equipos, con la opción de
+desactivarla o de sumar una segunda carpeta por equipo. La resolución vive en
+`backends.resolve_shares()`, que también crea la carpeta si no existe y evita
+que dos unidades compartan nombre.
+
+VNC quedó afuera: el visor de TigerVNC no implementa transferencia de
+ficheros, así que no hay nada que redirigir.
+
 ### Cifrado solo con la biblioteca estándar
 
 Se evaluó usar `cryptography`, pero arrastra un `.so` compilado al AppImage.
@@ -91,10 +109,12 @@ se usa `vncpasswd` si está, y esto queda como respaldo.
 | Pulido | Barra flotante en pantalla completa, formularios con scroll, tildes y eñes, Acerca de con créditos |
 | Multiidioma | Módulo `i18n` propio y diccionarios en español, inglés, francés y alemán |
 | Bandeja | Icono en la bandeja del sistema, arranque con el sistema, arranque minimizado |
+| Intercambio | Carpeta local publicada como unidad de red en las sesiones RDP, global y por equipo |
+| Rendimiento | Chequeo de estado en paralelo, índice de nodos, paletas cacheadas |
 
 Versiones publicadas: **1.0.0** (primera), **1.1.0** (idiomas y barra
 flotante), **1.2.0** (bandeja y arranque automático), **1.2.1** (casillas de
-los árboles).
+los árboles), **1.3.0** (carpeta de intercambio y optimización).
 
 ---
 
@@ -166,6 +186,27 @@ tubería al encontrar la primera coincidencia, `printf` moría de SIGPIPE y
 `set -e` abortaba el script. Se reemplazó la tubería por un *here-string*.
 Antes de eso, otro corte silencioso: `ldconfig` vive en `/usr/sbin` y no está
 en el PATH de un usuario normal.
+
+### Comprobar el estado bloqueaba un hilo un minuto entero
+
+`StatusChecker` hacía un `socket.create_connection` por equipo, uno detrás del
+otro, con 1,2 s de espera. Con cincuenta equipos apagados eso es un minuto de
+un hilo abriendo y cerrando sockets, y el chequeo periódico se solapaba con el
+anterior.
+
+Se reescribió como `net.scan_ports()`: un socket no bloqueante por destino,
+todos los `connect` disparados de golpe y un único `select` esperando a los
+que contesten. Cuarenta equipos caídos pasaron de ~48 s a 1,5 s, con un solo
+hilo y sin `ThreadPoolExecutor`. Va en tandas de 128 para no quedarse sin
+descriptores. Se resuelve con `getaddrinfo`, así que sigue andando con nombres
+y con IPv6.
+
+De paso aparecieron dos costos escondidos en el árbol: `Store.find()` recorría
+el árbol entero en cada llamada y se llamaba una vez por fila (O(n²) al
+repintar), y `palette()` construía un diccionario nuevo por cada icono. Ahora
+hay un índice `id -> nodo` en el store, invalidado en cada mutación, y las
+paletas se cachean. Repintar 500 filas bajó de 10 ms a 1 ms. También se dejó
+de recolocar la ventana embebida de las pestañas que no se ven.
 
 ### Los menús iban lentos y la ventana parecía trabada
 
@@ -247,6 +288,8 @@ se armaron pruebas que igual cubren el camino crítico:
 
 - Scroll dentro de la sesión cuando se usa resolución fija más grande que la
   pestaña (hoy se recorta).
+- Transferencia de ficheros en VNC (el visor de TigerVNC no la implementa;
+  haría falta otro visor).
 - Miniaturas de las sesiones en el árbol.
 - Túnel SSH para llegar a equipos detrás de un salto.
 - Importar desde mRemoteNG.

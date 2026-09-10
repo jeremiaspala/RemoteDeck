@@ -66,6 +66,7 @@ class TrayIcon(QSystemTrayIcon):
     toggleWindow = pyqtSignal()
     connectServer = pyqtSignal(object)
     openSettings = pyqtSignal()
+    openShare = pyqtSignal()
     checkStatus = pyqtSignal()
     quitRequested = pyqtSignal()
 
@@ -114,6 +115,11 @@ class TrayIcon(QSystemTrayIcon):
         status = QAction(icons.icon("network", c["text_dim"]), tr("Comprobar estado"), menu)
         status.triggered.connect(self.checkStatus.emit)
         menu.addAction(status)
+        share = QAction(
+            icons.icon("group", c["text_dim"]), tr("Carpeta de intercambio"), menu
+        )
+        share.triggered.connect(self.openShare.emit)
+        menu.addAction(share)
         prefs = QAction(icons.icon("settings", c["text_dim"]), tr("Preferencias"), menu)
         prefs.triggered.connect(self.openSettings.emit)
         menu.addAction(prefs)

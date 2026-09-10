@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QSize, Qt, QThread, QTimer, pyqtSignal
-from PyQt6.QtGui import QBrush, QColor, QIcon, QPainter, QPixmap
+from PyQt6.QtGui import QBrush, QColor
 from PyQt6.QtWidgets import QAbstractItemView, QTreeWidget, QTreeWidgetItem
 
 from .. import net
@@ -29,25 +29,12 @@ class StatusChecker(QThread):
         self._stop = True
 
     def run(self) -> None:
-        for node_id, host, port in self.targets:
-            if self._stop:
-                return
-            if not host:
-                continue
-            self.result.emit(node_id, net.port_open(host, port, timeout=1.2))
-
-
-def _dot(color: str, size: int = 10) -> QPixmap:
-    pixmap = QPixmap(size * 2, size * 2)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setBrush(QColor(color))
-    painter.setPen(Qt.PenStyle.NoPen)
-    painter.drawEllipse(2, size * 2 // 2 - size // 2, size, size)
-    painter.end()
-    pixmap.setDevicePixelRatio(2.0)
-    return pixmap
+        net.scan_ports(
+            self.targets,
+            self.result.emit,
+            timeout=1.2,
+            should_stop=lambda: self._stop,
+        )
 
 
 class ConnectionTree(QTreeWidget):
@@ -92,9 +79,10 @@ class ConnectionTree(QTreeWidget):
         }
         self.clear()
         self._add_children(self.store.root, self.invisibleRootItem())
+        nodes = self.store.index()
         for item in self._iter_items():
             node_id = item.data(0, ROLE_ID)
-            node = self.store.find(node_id)
+            node = nodes.get(node_id)
             if item.data(0, ROLE_KIND) == "group":
                 should = node_id in expanded if expanded else getattr(node, "expanded", True)
                 item.setExpanded(bool(should) or bool(self._filter))
@@ -137,10 +125,10 @@ class ConnectionTree(QTreeWidget):
                     | Qt.ItemFlag.ItemIsSelectable
                     | Qt.ItemFlag.ItemIsDragEnabled
                 )
-                self._decorate_server(item, node)
+                self._decorate_server(item, node, c)
 
-    def _decorate_server(self, item: QTreeWidgetItem, node: Server) -> None:
-        c = palette(self.settings["theme"], self.settings["accent"])
+    def _decorate_server(self, item: QTreeWidgetItem, node: Server, colours=None) -> None:
+        c = colours or palette(self.settings["theme"], self.settings["accent"])
         online = self.status.get(node.id)
         color = c["text_dim"] if online is None else (c["ok"] if online else c["error"])
         item.setIcon(0, icons.icon("rdp" if node.protocol == RDP else "vnc", color))
@@ -301,12 +289,14 @@ class ConnectionTree(QTreeWidget):
         self.status[node_id] = online
 
     def apply_status_colors(self) -> None:
+        nodes = self.store.index()
+        colours = palette(self.settings["theme"], self.settings["accent"])
         for item in self._iter_items():
             if item.data(0, ROLE_KIND) != "server":
                 continue
-            node = self.store.find(item.data(0, ROLE_ID))
+            node = nodes.get(item.data(0, ROLE_ID))
             if isinstance(node, Server):
-                self._decorate_server(item, node)
+                self._decorate_server(item, node, colours)
 
     def shutdown(self) -> None:
         self._status_timer.stop()

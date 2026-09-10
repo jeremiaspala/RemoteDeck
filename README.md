@@ -20,13 +20,20 @@ instala nada.
   dinámica, portapapeles, audio, micrófono, unidades, impresoras, tarjetas
   inteligentes, multi-monitor, RD Gateway, distribución de teclado y argumentos
   extra.
+- **Carpeta de intercambio**. Al conectarte por RDP se publica una carpeta
+  local como unidad de red en el equipo remoto (`\\tsclient\RemoteDeck`, y
+  visible en *Este equipo* en Windows). Copiar ficheros en las dos direcciones
+  sin SMB ni FTP. `Ctrl+Shift+O` la abre en el gestor de ficheros. Es global,
+  con carpeta extra por equipo y se puede desactivar por equipo.
 - **VNC**: codificación, calidad, compresión, solo lectura, sesión compartida y
   redimensionado del escritorio remoto.
 - **Wake-on-LAN por equipo**: MAC (con detección desde la tabla ARP), dirección
   de difusión, puerto y espera. Puede despertar el equipo automáticamente antes
   de conectarse y esperar a que el puerto responda.
 - **Estado en vivo**: chequea el puerto de cada equipo y pinta el indicador en
-  verde o rojo.
+  verde o rojo. Las comprobaciones van en paralelo con conexiones no
+  bloqueantes: doscientos equipos tardan lo mismo que uno y no gastan un hilo
+  por equipo.
 - **Importa de Remmina** (incluidas las contraseñas del llavero), de ficheros
   `.rdg` de RDCMan, de `.rdp` sueltos y de su propio JSON.
 - **Credenciales cifradas** en disco, con contraseña maestra opcional. Nunca
@@ -95,6 +102,7 @@ Atajos principales:
 | `Ctrl+W` | Cerrar la sesión activa |
 | `Ctrl+N` / `Ctrl+Shift+N` | Nuevo servidor / grupo |
 | `Ctrl+Shift+W` | Enviar Wake-on-LAN |
+| `Ctrl+Shift+O` | Abrir la carpeta de intercambio |
 | `F5` | Comprobar el estado de los equipos |
 
 ## Construir el AppImage
@@ -110,6 +118,8 @@ que no se usan, copia la aplicación y empaqueta `xfreerdp3`, `vncviewer` y
 
 ## Cómo funciona por dentro
 
+- **Carpeta de intercambio**: `/drive:<nombre>,<ruta>` de FreeRDP sobre el
+  canal `rdpdr`. No abre puertos ni necesita nada instalado en el servidor.
 - **RDP**: `xfreerdp3` con `/parent-window:<xid>`, apuntando a una ventana
   nativa de Qt. Los argumentos (contraseña incluida) se le pasan por `stdin`
   con `/args-from:stdin`, así no aparecen en `ps`.

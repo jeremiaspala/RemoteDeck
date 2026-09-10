@@ -335,6 +335,11 @@ class SessionView(QWidget):
         if self.child_window:
             self._resize_timer.start()
 
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        if self.child_window:
+            self._resize_timer.start()
+
     def _toggle_log(self, checked: bool) -> None:
         self.log_view.setVisible(checked)
         if checked:
@@ -426,6 +431,14 @@ class SessionView(QWidget):
         except backends.BackendMissing as exc:
             self._set_state(State.FAILED, str(exc))
             return
+
+        if self.server.protocol == RDP:
+            for label, path in backends.resolve_shares(self.server, self.settings):
+                self.log(
+                    tr("Carpeta compartida: {path} -> \\\\tsclient\\{label}").format(
+                        path=path, label=label
+                    )
+                )
 
         self.log("$ " + " ".join(self.launch.argv))
         self.process = QProcess(self)
@@ -532,6 +545,10 @@ class SessionView(QWidget):
 
     def _watch_child(self) -> None:
         if not self.child_window:
+            return
+        # en una pestaña oculta no hay nada que recolocar: al volver a mostrarse
+        # el resizeEvent dispara _apply_child_geometry.
+        if not self.isVisible():
             return
         conn = x11.shared()
         geometry = conn.geometry(self.child_window)

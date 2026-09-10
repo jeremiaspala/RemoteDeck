@@ -41,11 +41,19 @@ LIGHT = {
 }
 
 
+_palettes: dict[tuple[str, str], dict[str, str]] = {}
+
+
 def palette(theme: str, accent: str | None = None) -> dict[str, str]:
-    base = dict(LIGHT if theme == "light" else DARK)
-    if accent:
-        base["accent"] = accent
-    return base
+    """Paleta cacheada. El diccionario es compartido: no se debe modificar."""
+    key = (theme or "dark", accent or "")
+    cached = _palettes.get(key)
+    if cached is None:
+        cached = dict(LIGHT if theme == "light" else DARK)
+        if accent:
+            cached["accent"] = accent
+        _palettes[key] = cached
+    return cached
 
 
 

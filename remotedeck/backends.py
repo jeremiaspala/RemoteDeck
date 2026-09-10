@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .model import RDP, VNC, Server
-from .paths import runtime_dir
+from .paths import ensure_share_dir, runtime_dir
 
 RDP_BINARIES = ("xfreerdp3", "xfreerdp", "freerdp3", "wlfreerdp")
 VNC_BINARIES = ("vncviewer", "xtigervncviewer", "tigervncviewer")
@@ -64,6 +64,42 @@ class Launch:
                 pass
 
 
+def _drive_label(raw: str, fallback: str) -> str:
+    """Nombre con el que la unidad aparece en \\\\tsclient del servidor."""
+    label = "".join(ch for ch in raw.strip() if ch not in ',:;"\\/').strip()
+    return label or fallback
+
+
+def resolve_shares(server: Server, settings=None) -> list[tuple[str, str]]:
+    """Unidades a publicar en la sesion: (etiqueta, ruta local).
+
+    La carpeta de intercambio global se comparte en todas las sesiones RDP
+    salvo que el equipo la desactive; la carpeta propia del equipo se suma
+    aparte.
+    """
+    o = server.rdp
+    shares: list[tuple[str, str]] = []
+
+    share_enabled = bool(settings["share_enabled"]) if settings is not None else True
+    if o.share_default and share_enabled:
+        configured = settings["share_path"] if settings is not None else ""
+        path = ensure_share_dir(configured)
+        if path:
+            label = settings["share_label"] if settings is not None else ""
+            shares.append((_drive_label(label, "RemoteDeck"), str(path)))
+
+    if o.shared_folder:
+        own = Path(os.path.expanduser(o.shared_folder.strip()))
+        if own.is_dir() and str(own) not in [p for _, p in shares]:
+            label = _drive_label(o.share_label, own.name or "shared")
+            taken = {lbl for lbl, _ in shares}
+            if label in taken:
+                label = f"{label}-2"
+            shares.append((label, str(own)))
+
+    return shares
+
+
 # ---------------------------------------------------------------- RDP
 def build_rdp(
     server: Server,
@@ -75,6 +111,7 @@ def build_rdp(
     height: int,
     fullscreen: bool = False,
     binary_override: str = "",
+    shares: list[tuple[str, str]] | None = None,
 ) -> Launch:
     binary = find_binary(RDP_BINARIES, binary_override)
     o = server.rdp
@@ -122,9 +159,8 @@ def build_rdp(
         args.append("+drives")
     if o.home_drive:
         args.append("+home-drive")
-    if o.shared_folder:
-        label = Path(o.shared_folder).name or "shared"
-        args.append(f"/drive:{label},{o.shared_folder}")
+    for label, path in (shares if shares is not None else resolve_shares(server)):
+        args.append(f"/drive:{label},{path}")
     if o.printers:
         args.append("/printer")
     if o.smartcard:
@@ -257,6 +293,7 @@ def build(
         height,
         fullscreen,
         rdp_bin,
+        resolve_shares(server, settings),
     )
 
 
